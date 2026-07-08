@@ -420,6 +420,37 @@ Return a single JSON object:
     return json.loads(text)
 
 
+async def fix_generated_problem_with_gemini(problem_data: dict, error_message: str) -> dict:
+    """Ask Gemini to fix a generated problem that failed its own self-validation."""
+    import google.generativeai as genai
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    
+    prompt = f"""You previously generated a coding problem, but the official solution failed against the test cases when run in a Python 3 sandbox.
+
+Original Problem Data:
+{json.dumps(problem_data, indent=2)}
+
+Execution Error / Output:
+{error_message}
+
+Please fix the problem. You can either fix the `official_solution` code (if there is a bug), or fix the `test_cases` (if the expected output is incorrect or invalid).
+Return the fixed problem as a JSON object matching the EXACT original schema (no markdown fences, make sure to escape newlines as \\n in strings)."""
+
+    model = genai.GenerativeModel(
+        model_name="gemini-flash-lite-latest",
+        generation_config={"temperature": 0.4, "response_mime_type": "application/json"},
+    )
+    response = model.generate_content(prompt)
+    text = response.text.strip()
+    # Strip markdown fences if present
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    return json.loads(text)
+
+
 # ─── Public API ──────────────────────────────────────────────────────────────
 
 async def generate_mcqs(topic: str, difficulty: str, count: int, db: AsyncSession, style: str | None = None):
@@ -498,7 +529,7 @@ async def generate_feedback_with_gemini(session_summary: dict) -> dict:
 Session data:
 {json.dumps(session_summary, indent=2)}
 
-Analyze the candidate's performance. For any incorrect coding questions, review their `submitted_code` and the `expected_solution` to diagnose exactly why they failed (e.g., O(n²) instead of O(n), missed an edge case, syntax error).
+Analyze the candidate's performance. For any incorrect coding questions, review their `submitted_code` and the `expected_solution` to diagnose exactly why they failed (e.g., O(n²) instead of O(n), missed an edge case, syntax error). Provide the expected solution logic, and compare their code's complexity with the optimal complexity.
 
 Return a JSON object (no markdown fences) matching this exact format:
 {{
@@ -507,7 +538,9 @@ Return a JSON object (no markdown fences) matching this exact format:
   "question_insights": [
     {{
       "title": "problem title",
-      "key_insight": "A specific, targeted critique. For coding problems they got wrong, explain exactly what was wrong with their code."
+      "explanation": "Specific critique (e.g. what edge case was missed, what was wrong with the code)",
+      "approach": "The optimal solution approach or code walkthrough. Provide the correct logic clearly.",
+      "complexity": "e.g., 'Expected: O(N) Time, O(1) Space. Yours: O(N^2) Time.'"
     }}
   ]
 }}"""

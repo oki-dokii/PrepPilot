@@ -136,7 +136,14 @@ async def get_mastery(
     from app.models.models import MasteryNode
     result = await db.execute(select(MasteryNode).where(MasteryNode.user_id == current_user.id))
     nodes = result.scalars().all()
-    return [{"topic": n.topic, "mastery_score": n.mastery_score} for n in nodes]
+    return [
+        {
+            "topic": n.topic,
+            "mastery_score": n.mastery_score,
+            "last_seen_at": n.last_seen_at.isoformat() if n.last_seen_at else None
+        }
+        for n in nodes
+    ]
 
 
 @router.put("/profile", response_model=UserResponse)

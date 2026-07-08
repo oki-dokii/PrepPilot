@@ -124,6 +124,20 @@ async def grade_session(session_id: str, db: AsyncSession) -> Report:
             if ai_feedback:
                 summary["overall_feedback"] = ai_feedback.get("overall_feedback", "")
                 summary["study_plan"] = ai_feedback.get("study_plan", [])
+                
+                # Merge question insights
+                insights = ai_feedback.get("question_insights", [])
+                insight_map = {item.get("title", ""): item for item in insights}
+                
+                for q in summary["questions"]:
+                    if q["title"] in insight_map:
+                        insight = insight_map[q["title"]]
+                        if "explanation" in insight:
+                            q["explanation"] = insight["explanation"]
+                        if "approach" in insight:
+                            q["approach"] = insight["approach"]
+                        if "complexity" in insight:
+                            q["complexity"] = insight["complexity"]
         except Exception as e:
             pass
 

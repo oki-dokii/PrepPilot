@@ -60,19 +60,20 @@ export const sessionsApi = {
 
   list: () => api.get("/api/sessions/"),
 
-  submit: (sessionId: string) =>
-    api.post(`/api/sessions/${sessionId}/submit`),
+  submit: (sessionId: string, antiCheat?: { tab_switches: number, paste_bursts: number }) =>
+    api.post(`/api/sessions/${sessionId}/submit`, antiCheat || { tab_switches: 0, paste_bursts: 0 }),
 };
 
 // ─── Submissions ──────────────────────────────────────────────────────────────
 
 export const submissionsApi = {
-  submitCode: (sessionId: string, problemId: string, code: string, language: string) =>
+  submitCode: (sessionId: string, problemId: string, code: string, language: string, is_run: boolean = false) =>
     api.post("/api/submissions/code", {
       session_id: sessionId,
       problem_id: problemId,
       code,
       language,
+      is_run,
     }),
 
   submitMcq: (sessionId: string, mcqId: string, chosenOption: string) =>
@@ -87,4 +88,36 @@ export const submissionsApi = {
 
 export const reportsApi = {
   get: (sessionId: string) => api.get(`/api/reports/${sessionId}`),
+};
+
+// ─── Cohorts ──────────────────────────────────────────────────────────────────
+
+export const cohortsApi = {
+  create: (testId: string, name: string) => 
+    api.post("/api/cohorts/", { test_id: testId, name }),
+  join: (inviteCode: string) => 
+    api.post(`/api/cohorts/${inviteCode}/join`),
+  getLeaderboard: (inviteCode: string) => 
+    api.get(`/api/cohorts/${inviteCode}/leaderboard`),
+  getInfo: (inviteCode: string) =>
+    api.get(`/api/cohorts/${inviteCode}`),
+};
+
+// ─── Scheduled Events ─────────────────────────────────────────────────────────
+
+export const eventsApi = {
+  create: (testId: string, title: string, scheduledStart: string, joinWindowMinutes: number, maxParticipants?: number) =>
+    api.post("/api/events/", { 
+      test_id: testId, 
+      title, 
+      scheduled_start: scheduledStart, 
+      join_window_minutes: joinWindowMinutes,
+      max_participants: maxParticipants
+    }),
+  list: () =>
+    api.get("/api/events/"),
+  getPublicInfo: (slug: string) =>
+    api.get(`/api/events/${slug}`),
+  join: (slug: string) =>
+    api.post(`/api/events/${slug}/join`),
 };

@@ -118,8 +118,40 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
                         if problem.official_solution:
                             verdict, _, _, _, err = await run_against_hidden_tests(problem.id, problem.official_solution, "python3", db)
                             if verdict != Verdict.accepted:
-                                logger.warning(f"Validation failed for '{problem.title}': {verdict} - {err}")
-                                raise ValueError("Validation failed")
+                                logger.warning(f"Validation failed for '{problem.title}': {verdict} - {err}. Attempting fix...")
+                                from app.services.llm import fix_generated_problem_with_gemini
+                                from sqlalchemy import delete
+                                
+                                # Ask LLM to fix it
+                                fixed_data = await fix_generated_problem_with_gemini(data, str(err))
+                                
+                                # Apply fixes
+                                problem.title = fixed_data.get("title", problem.title)
+                                problem.statement = fixed_data.get("statement", problem.statement)
+                                problem.official_solution = fixed_data.get("official_solution", problem.official_solution)
+                                problem.sample_input = fixed_data.get("sample_input", problem.sample_input)
+                                problem.sample_output = fixed_data.get("sample_output", problem.sample_output)
+                                
+                                # Replace test cases
+                                await db.execute(delete(TestCase).where(TestCase.problem_id == problem.id))
+                                for tc in fixed_data.get("test_cases", []):
+                                    db.add(TestCase(
+                                        problem_id=problem.id,
+                                        input=tc["input"],
+                                        expected_output=tc["expected"],
+                                        is_hidden=tc.get("is_hidden", True),
+                                        category=tc.get("category", "random"),
+                                    ))
+                                await db.flush()
+                                
+                                # Re-validate
+                                verdict, _, _, _, err = await run_against_hidden_tests(problem.id, problem.official_solution, "python3", db)
+                                if verdict != Verdict.accepted:
+                                    logger.warning(f"Validation failed again after fix for '{problem.title}': {verdict} - {err}")
+                                    raise ValueError("Validation failed after self-correction retry")
+                                else:
+                                    logger.info(f"Self-correction succeeded for '{problem.title}'!")
+
                             problem.validated_at = datetime.now(timezone.utc)
                             logger.info(f"Problem '{problem.title}' passed self-validation.")
 

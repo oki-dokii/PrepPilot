@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import (
     Column, String, Integer, Float, Boolean, DateTime, Text,
-    ForeignKey, ARRAY, JSON, Enum as SAEnum
+    ForeignKey, ARRAY, JSON, Enum as SAEnum, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -28,6 +28,11 @@ class SessionStatus(str, enum.Enum):
     active = "active"
     submitted = "submitted"
     expired = "expired"
+
+class ScheduledEventStatus(str, enum.Enum):
+    scheduled = "scheduled"
+    open = "open"
+    closed = "closed"
 
 class Verdict(str, enum.Enum):
     accepted = "accepted"
@@ -136,20 +141,27 @@ class TestQuestion(Base):
 
 class Session(Base):
     __tablename__ = "sessions"
+    __table_args__ = (
+        UniqueConstraint('event_id', 'user_id', name='uq_session_event_user'),
+    )
 
     id = Column(String(36), primary_key=True, default=gen_uuid)
     test_id = Column(String(36), ForeignKey("tests.id"), nullable=False)
+    event_id = Column(String(36), ForeignKey("scheduled_events.id"), nullable=True)
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     started_at = Column(DateTime(timezone=True))
     submitted_at = Column(DateTime(timezone=True))
     expires_at = Column(DateTime(timezone=True))
     status = Column(SAEnum(SessionStatus), default=SessionStatus.pending)
+    tab_switches = Column(Integer, default=0)
+    paste_bursts = Column(Integer, default=0)
 
     test = relationship("Test", back_populates="sessions")
     user = relationship("User", back_populates="sessions")
     submissions = relationship("Submission", back_populates="session")
     mcq_answers = relationship("MCQAnswer", back_populates="session")
     report = relationship("Report", back_populates="session", uselist=False)
+    scheduled_event = relationship("ScheduledEvent", back_populates="sessions")
 
 
 class Submission(Base):
@@ -210,3 +222,55 @@ class Report(Base):
     generated_at = Column(DateTime(timezone=True), server_default=func.now())
 
     session = relationship("Session", back_populates="report")
+
+
+class Cohort(Base):
+    """A shared mock OA that multiple users can join with an invite code."""
+    __tablename__ = "cohorts"
+
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    name = Column(String(255), nullable=False)
+    test_template_id = Column(String(36), ForeignKey("tests.id"), nullable=False)  # template test cloned per member
+    invite_code = Column(String(12), unique=True, nullable=False, index=True)
+    created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    creator = relationship("User", foreign_keys=[created_by])
+    members = relationship("CohortMember", back_populates="cohort")
+    template_test = relationship("Test", foreign_keys=[test_template_id])
+
+
+class CohortMember(Base):
+    """A user who has joined a cohort and optionally has a session linked."""
+    __tablename__ = "cohort_members"
+
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    cohort_id = Column(String(36), ForeignKey("cohorts.id"), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    session_id = Column(String(36), ForeignKey("sessions.id"), nullable=True)  # set when they start the test
+    joined_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    cohort = relationship("Cohort", back_populates="members")
+    user = relationship("User", foreign_keys=[user_id])
+    session = relationship("Session", foreign_keys=[session_id])
+
+
+class ScheduledEvent(Base):
+    __tablename__ = "scheduled_events"
+
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    test_id = Column(String(36), ForeignKey("tests.id"), nullable=False)
+    creator_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    slug = Column(String(50), unique=True, nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    scheduled_start = Column(DateTime(timezone=True), nullable=False)
+    join_window_minutes = Column(Integer, default=15)
+    duration_minutes = Column(Integer, nullable=False)
+    max_participants = Column(Integer, nullable=True)
+    status = Column(SAEnum(ScheduledEventStatus), default=ScheduledEventStatus.scheduled)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    creator = relationship("User")
+    test = relationship("Test")
+    sessions = relationship("Session", back_populates="scheduled_event")

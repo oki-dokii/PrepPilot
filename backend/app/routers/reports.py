@@ -21,6 +21,8 @@ class ReportResponse(BaseModel):
     weak_topics: List[str]
     summary: Optional[dict]
     status: str  # "ready" | "processing"
+    tab_switches: int = 0
+    paste_bursts: int = 0
 
 
 @router.get("/{session_id}", response_model=ReportResponse)
@@ -52,6 +54,8 @@ async def get_report(
             weak_topics=[],
             summary=None,
             status="processing",
+            tab_switches=session.tab_switches or 0,
+            paste_bursts=session.paste_bursts or 0,
         )
 
     # Regenerate old placeholder/fallback reports if Gemini is now active
@@ -67,6 +71,22 @@ async def get_report(
                     new_summary = dict(summary)
                     new_summary["overall_feedback"] = ai_feedback.get("overall_feedback", "")
                     new_summary["study_plan"] = ai_feedback.get("study_plan", [])
+                    
+                    # Merge question insights
+                    if "questions" in new_summary:
+                        insights = ai_feedback.get("question_insights", [])
+                        insight_map = {item.get("title", ""): item for item in insights}
+                        
+                        for q in new_summary["questions"]:
+                            if q.get("title") in insight_map:
+                                insight = insight_map[q["title"]]
+                                if "explanation" in insight:
+                                    q["explanation"] = insight["explanation"]
+                                if "approach" in insight:
+                                    q["approach"] = insight["approach"]
+                                if "complexity" in insight:
+                                    q["complexity"] = insight["complexity"]
+                    
                     report.summary = new_summary
                     db.add(report)
                     await db.flush()
@@ -82,4 +102,6 @@ async def get_report(
         weak_topics=report.weak_topics or [],
         summary=report.summary,
         status="ready",
+        tab_switches=session.tab_switches or 0,
+        paste_bursts=session.paste_bursts or 0,
     )

@@ -279,9 +279,14 @@ async def get_session(
     )
 
 
+class SubmitSessionRequest(BaseModel):
+    tab_switches: int = 0
+    paste_bursts: int = 0
+
 @router.post("/{session_id}/submit")
 async def submit_session(
     session_id: str,
+    data: SubmitSessionRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -297,6 +302,8 @@ async def submit_session(
 
     session.status = SessionStatus.submitted
     session.submitted_at = datetime.now(timezone.utc)
+    session.tab_switches = data.tab_switches
+    session.paste_bursts = data.paste_bursts
     await db.flush()
     await invalidate_session(session_id)
 

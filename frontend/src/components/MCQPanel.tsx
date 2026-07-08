@@ -8,7 +8,7 @@ interface MCQPanelProps {
   question: string;
   options: Record<string, string>;
   sessionId: string;
-  onAnswer: (mcqId: string) => void;
+  onAnswer: (mcqId: string, chosenOption: string) => void;
   disabled: boolean;
   initialData?: { chosen_option: string; is_correct: boolean; correct_option: string };
 }
@@ -16,14 +16,14 @@ interface MCQPanelProps {
 export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabled, initialData }: MCQPanelProps) {
   const [selected, setSelected] = useState<string | null>(initialData?.chosen_option || null);
   const [result, setResult] = useState<{ is_correct: boolean; correct_option: string } | null>(
-    initialData ? { is_correct: initialData.is_correct, correct_option: initialData.correct_option } : null
+    initialData && initialData.correct_option ? { is_correct: initialData.is_correct, correct_option: initialData.correct_option } : null
   );
   const [submitting, setSubmitting] = useState(false);
 
   const entries = Object.entries(options);
 
   const handleSelect = async (key: string) => {
-    if (selected || disabled || submitting) return;
+    if (disabled || submitting) return;
     setSelected(key);
     setSubmitting(true);
     try {
@@ -32,7 +32,7 @@ export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabl
       if (res.data.correct_option !== undefined) {
         setResult(res.data);
       }
-      onAnswer(mcqId);
+      onAnswer(mcqId, key);
     } catch {
       setSelected(null);
     } finally {
@@ -93,12 +93,11 @@ export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabl
             <button
               key={key}
               onClick={() => handleSelect(key)}
-              disabled={!!selected || disabled || submitting}
+              disabled={disabled || submitting}
               className={
                 "flex items-start gap-3 p-4 border text-left transition-all cursor-pointer w-full " +
                 borderClass + " " + bgClass + " " +
-                (!selected && !disabled ? "hover:border-chalk/30 hover:bg-chalk/5" : "") +
-                (selected ? " cursor-default" : "")
+                (!disabled ? "hover:border-chalk/30 hover:bg-chalk/5" : "")
               }
             >
               {/* Key badge */}

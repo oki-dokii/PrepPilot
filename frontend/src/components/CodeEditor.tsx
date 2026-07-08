@@ -22,6 +22,7 @@ interface CodeEditorProps {
   sessionId: string;
   disabled: boolean;
   initialData?: { code: string; language: string; verdict: string };
+  onChange?: (code: string, language: string) => void;
   onSubmit?: (result: SubmissionResult) => void;
 }
 
@@ -58,18 +59,30 @@ int main() {
     return 0;
 }
 `,
+  java: `import java.util.*;
+import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        // Write your solution here
+    }
+}
+`,
 };
 
 const LANG_LABELS: Record<string, string> = {
   python3: "Python",
   javascript: "JS",
   cpp: "C++",
+  java: "Java",
 };
 
 const LANG_FILE: Record<string, string> = {
   python3: "SOLUTION.PY",
   javascript: "SOLUTION.JS",
   cpp: "SOLUTION.CPP",
+  java: "MAIN.JAVA",
 };
 
 const VERDICT_META: Record<string, { label: string; color: string }> = {
@@ -81,10 +94,10 @@ const VERDICT_META: Record<string, { label: string; color: string }> = {
   pending:       { label: "Pending…", color: "rgba(236,234,228,0.5)" },
 };
 
-export function CodeEditor({ problemId, sessionId, disabled, initialData, onSubmit }: CodeEditorProps) {
+export function CodeEditor({ problemId, sessionId, disabled, initialData, onChange, onSubmit }: CodeEditorProps) {
   const [language, setLanguage] = useState(initialData?.language || "python3");
   const [code, setCode] = useState(initialData?.code || STARTERS[initialData?.language || "python3"]);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitType, setSubmitType] = useState<"run" | "submit" | null>(null);
   const [result, setResult] = useState<SubmissionResult | null>(
     initialData ? {
       verdict: initialData.verdict,
@@ -98,24 +111,28 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onSubm
 
   const handleLanguageChange = (lang: string) => {
     setLanguage(lang);
-    setCode(STARTERS[lang] || "");
+    const newCode = STARTERS[lang] || "";
+    setCode(newCode);
     setResult(null);
     setApiError("");
+    onChange?.(newCode, lang);
   };
 
-  const handleSubmit = async () => {
-    if (submitting || disabled) return;
+  const handleSubmit = async (type: "run" | "submit") => {
+    if (submitType || disabled) return;
     setApiError("");
     setResult(null);
-    setSubmitting(true);
+    setSubmitType(type);
     try {
-      const res = await submissionsApi.submitCode(sessionId, problemId, code, language);
+      const res = await submissionsApi.submitCode(sessionId, problemId, code, language, type === "run");
       setResult(res.data);
-      onSubmit?.(res.data);
+      if (type === "submit") {
+        onSubmit?.(res.data);
+      }
     } catch (err: any) {
       setApiError(err?.response?.data?.detail || "Submission failed. Please try again.");
     } finally {
-      setSubmitting(false);
+      setSubmitType(null);
     }
   };
 
@@ -148,23 +165,23 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onSubm
 
         {/* Right: RUN · SUBMIT */}
         <div className="flex items-center gap-3">
-          {submitting && (
+          {submitType && (
             <Loader2 size={12} className="animate-spin text-chalk/50" />
           )}
           <button
-            onClick={handleSubmit}
-            disabled={submitting || disabled}
+            onClick={() => handleSubmit("run")}
+            disabled={!!submitType || disabled}
             className="h-7 px-4 border border-chalk/20 text-chalk text-[11px] font-mono hover:bg-chalk/5 disabled:opacity-50 transition-colors"
           >
-            {submitting ? "RUNNING…" : "RUN"}
+            {submitType === "run" ? "RUNNING…" : "RUN"}
           </button>
           <button
             id="submit-code-btn"
-            onClick={handleSubmit}
-            disabled={submitting || disabled}
+            onClick={() => handleSubmit("submit")}
+            disabled={!!submitType || disabled}
             className="h-7 px-4 bg-chalk text-graphite text-[11px] font-mono hover:bg-chalk/90 disabled:opacity-50 transition-colors"
           >
-            {submitting ? "SUBMITTING…" : "SUBMIT"}
+            {submitType === "submit" ? "SUBMITTING…" : "SUBMIT"}
           </button>
         </div>
       </div>
@@ -173,9 +190,12 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onSubm
       <div className="flex-1 overflow-hidden min-h-0">
         <MonacoEditor
           height="100%"
-          language={language === "python3" ? "python" : language === "cpp" ? "cpp" : "javascript"}
+          language={language === "python3" ? "python" : language === "cpp" ? "cpp" : language === "java" ? "java" : "javascript"}
           value={code}
-          onChange={(v) => setCode(v || "")}
+          onChange={(v) => {
+            setCode(v || "");
+            onChange?.(v || "", language);
+          }}
           onMount={(editor) => { editorRef.current = editor; }}
           theme="vs-dark"
           options={{
@@ -204,17 +224,17 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onSubm
           <div className="stamp-id text-chalk/40 mb-2">CONSOLE</div>
 
           {/* Idle */}
-          {!submitting && !result && !apiError && (
+          {!submitType && !result && !apiError && (
             <div className="font-mono text-[12px] text-chalk/40">
               <span className="text-chalk/30">$</span> ready — press SUBMIT to judge
             </div>
           )}
 
           {/* Judging */}
-          {submitting && (
+          {submitType && (
             <div className="font-mono text-[12px] text-chalk/60 flex items-center gap-2">
               <span className="inline-block h-1.5 w-1.5 bg-chalk/60 rounded-full animate-pulse" />
-              running against hidden test cases…
+              {submitType === "run" ? "running against sample test cases…" : "running against hidden test cases…"}
             </div>
           )}
 

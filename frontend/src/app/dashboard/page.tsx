@@ -8,7 +8,7 @@ import { sessionsApi, authApi } from "@/lib/api";
 import { LayoutWrapper, StampCard } from "@/components/LayoutWrapper";
 import { MasteryGraph, CANONICAL_NODES, DEFAULT_EDGES, resolveTopicToNodeId } from "@/components/MasteryGraph";
 import ChatSetup from "@/components/ChatSetup";
-import { Plus, TrendingUp, BookOpen, Zap } from "lucide-react";
+import { Plus, TrendingUp, BookOpen, Zap, Clock } from "lucide-react";
 
 interface SessionItem {
   id: string;
@@ -33,8 +33,28 @@ export default function DashboardPage() {
   const [showNewTest, setShowNewTest] = useState(false);
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
-  const [masteryData, setMasteryData] = useState<{topic: string, mastery_score: number}[]>([]);
+  const [masteryData, setMasteryData] = useState<{topic: string, mastery_score: number, last_seen_at?: string}[]>([]);
   const [focusTopic, setFocusTopic] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState("");
+  const [joiningCohort, setJoiningCohort] = useState(false);
+
+  const handleJoinCohort = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteCode.trim() || joiningCohort) return;
+    setJoiningCohort(true);
+    try {
+      const { cohortsApi } = await import("@/lib/api");
+      const res = await cohortsApi.join(inviteCode.trim().toUpperCase());
+      if (res.data.already_joined) {
+        router.push(`/test/${res.data.session_id}`);
+      } else {
+        router.push(`/cohort/${res.data.invite_code}`); // Go to leaderboard/lobby
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to join cohort");
+      setJoiningCohort(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -59,10 +79,22 @@ export default function DashboardPage() {
     masteryData.forEach((m) => {
       if (nodeMap[m.topic]) {
         nodeMap[m.topic].mastery = m.mastery_score;
+        (nodeMap[m.topic] as any).last_seen_at = m.last_seen_at;
       }
     });
 
     return nodes;
+  }, [masteryData]);
+
+  const weakTopicsForChat = useMemo(() => {
+    return masteryData
+      .filter(m => m.mastery_score < 0.75 && m.mastery_score > 0)
+      .sort((a, b) => a.mastery_score - b.mastery_score)
+      .slice(0, 3)
+      .map(m => {
+        const node = CANONICAL_NODES.find(n => n.id === m.topic);
+        return { id: m.topic, label: node?.label || m.topic, mastery: m.mastery_score };
+      });
   }, [masteryData]);
 
   // Nodes that have been tested and are weakest
@@ -106,13 +138,21 @@ export default function DashboardPage() {
             <div className="stamp-id mb-1">DOC-02 · OVERVIEW</div>
             <h1 className="font-display text-[32px] tracking-tight text-foreground font-medium">Dashboard</h1>
           </div>
-          <button
-            id="new-test-btn"
-            className="btn btn-primary"
-            onClick={() => setShowNewTest(true)}
-          >
-            <Plus size={14} /> New Test
-          </button>
+          <div className="flex gap-3">
+            <Link
+              href="/schedule/new"
+              className="btn border border-border bg-background hover:bg-foreground/5 text-foreground flex items-center gap-1.5"
+            >
+              <Clock size={14} /> Schedule OA
+            </Link>
+            <button
+              id="new-test-btn"
+              className="btn btn-primary"
+              onClick={() => setShowNewTest(true)}
+            >
+              <Plus size={14} /> New Test
+            </button>
+          </div>
         </div>
 
         {/* Quick stats bar */}
@@ -159,6 +199,8 @@ export default function DashboardPage() {
               <ChatSetup
                 onTestReady={(sessionId) => router.push(`/test/${sessionId}`)}
                 onCancel={() => setShowNewTest(false)}
+                onCohortReady={(code) => router.push(`/cohort/${code}`)}
+                weakTopics={weakTopicsForChat}
               />
             </div>
           </div>
@@ -225,20 +267,56 @@ export default function DashboardPage() {
                     . A focused session here will boost your overall readiness.
                   </p>
                   <div className="flex flex-wrap gap-2 mb-5">
-                    {suggestedTopics.map((n) => (
-                      <span key={n.id} className="stamp-id border border-border px-2 py-1 bg-background/20">
-                        {n.label} · {Math.round(n.mastery * 100)}%
-                      </span>
-                    ))}
+                    {suggestedTopics.map((n) => {
+                      const isDue = (n as any).last_seen_at && (new Date().getTime() - new Date((n as any).last_seen_at).getTime()) > 5 * 24 * 60 * 60 * 1000;
+                      return (
+                        <span key={n.id} className="stamp-id border border-border px-2 py-1 bg-background/20">
+                          {n.label} · {Math.round(n.mastery * 100)}%
+                          {isDue && <span className="ml-1 text-rust">· 🔁 Due for review</span>}
+                        </span>
+                      );
+                    })}
                   </div>
                 </>
               )}
-              <button
-                onClick={() => setShowNewTest(true)}
-                className="w-full text-center h-10 leading-10 bg-blueprint text-chalk text-[14px] font-medium hover:bg-blueprint/90 rounded-sm cursor-pointer transition-colors"
-              >
-                Configure & Start Test
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => setShowNewTest(true)}
+                  className="w-full text-center h-10 leading-10 bg-blueprint text-chalk text-[14px] font-medium hover:bg-blueprint/90 rounded-sm cursor-pointer transition-colors"
+                >
+                  Configure & Start Test
+                </button>
+                {weakTopicsForChat.length > 0 && (
+                  <button
+                    onClick={() => setShowNewTest(true)}
+                    id="focus-weak-areas-btn"
+                    className="w-full text-center h-10 leading-10 border border-blueprint text-blueprint text-[13px] font-medium hover:bg-blueprint/10 rounded-sm cursor-pointer transition-colors"
+                  >
+                    ⚡ Focus Weak Areas ({weakTopicsForChat.map(t => t.label).join(', ')})
+                  </button>
+                )}
+              </div>
+            </StampCard>
+
+            <StampCard id="COHORT · JOIN" title="Join Cohort OA">
+              <div className="stamp-id mb-2 text-foreground/60">HAVE AN INVITE CODE?</div>
+              <form onSubmit={handleJoinCohort} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="PP-X7K2..."
+                  value={inviteCode}
+                  onChange={e => setInviteCode(e.target.value.toUpperCase())}
+                  disabled={joiningCohort}
+                  className="flex-1 bg-background/50 border border-border px-3 text-[13px] font-mono focus:border-blueprint outline-none uppercase"
+                />
+                <button
+                  type="submit"
+                  disabled={!inviteCode.trim() || joiningCohort}
+                  className="px-4 h-9 bg-background hover:bg-background/80 border border-border text-foreground text-[13px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {joiningCohort ? "..." : "Join"}
+                </button>
+              </form>
             </StampCard>
 
             <StampCard id="RECENT · REPORTS" title="Recent test reports">

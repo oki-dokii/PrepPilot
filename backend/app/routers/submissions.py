@@ -30,6 +30,7 @@ class CodeSubmit(BaseModel):
     problem_id: str
     code: str
     language: str  # "python3" | "javascript" | "cpp"
+    is_run: bool = False
 
 class MCQSubmit(BaseModel):
     session_id: str
@@ -65,7 +66,18 @@ async def submit_code(
         code=data.code,
         language=data.language,
         db=db,
+        is_run=data.is_run,
     )
+
+    if data.is_run:
+        return SubmissionResponse(
+            id="run-only",
+            verdict=verdict.value,
+            runtime_ms=runtime_ms,
+            passed_hidden_count=passed,
+            total_hidden_count=total,
+            error_output=error_output,
+        )
 
     submission = Submission(
         session_id=data.session_id,
@@ -117,19 +129,22 @@ async def submit_mcq(
             MCQAnswer.mcq_id == data.mcq_id,
         )
     )
-    if existing.scalar_one_or_none():
-        # Already answered — silently accept but don't overwrite
-        return {"recorded": True}
-
+    existing_record = existing.scalar_one_or_none()
     is_correct = data.chosen_option.upper() == mcq.correct_option.upper()
-    answer = MCQAnswer(
-        session_id=data.session_id,
-        mcq_id=data.mcq_id,
-        chosen_option=data.chosen_option.upper(),
-        is_correct=is_correct,
-    )
-    db.add(answer)
-    await db.flush()
+
+    if existing_record:
+        existing_record.chosen_option = data.chosen_option.upper()
+        existing_record.is_correct = is_correct
+        await db.flush()
+    else:
+        answer = MCQAnswer(
+            session_id=data.session_id,
+            mcq_id=data.mcq_id,
+            chosen_option=data.chosen_option.upper(),
+            is_correct=is_correct,
+        )
+        db.add(answer)
+        await db.flush()
 
     # IMPORTANT: Never return is_correct or correct_option during a live test.
     # Correctness is revealed only via the report after the session is submitted.

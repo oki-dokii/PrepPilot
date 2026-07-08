@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { sessionsApi } from "@/lib/api";
@@ -65,25 +65,54 @@ export default function TestPage() {
   const [submitted, setSubmitted] = useState(false);
   const [answeredMCQs, setAnsweredMCQs] = useState<Set<string>>(new Set());
   const [solvedCoding, setSolvedCoding] = useState<Set<string>>(new Set());
+  const [localMcqAnswers, setLocalMcqAnswers] = useState<Record<string, string>>({});
+  const [localCode, setLocalCode] = useState<Record<string, {code: string, language: string, verdict?: string}>>({});
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [tabWarning, setTabWarning] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Anti-cheat trackers
+  const [tabSwitches, setTabSwitches] = useState(0);
+  const [pasteBursts, setPasteBursts] = useState(0);
+  const pasteTimesRef = useRef<number[]>([]);
 
   // Auth guard
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
-  // Tab-switch warning
+  // Tab-switch / Window-leave warning
   useEffect(() => {
-    const onVisibility = () => {
-      if (document.hidden && session?.status === "active") {
+    const onBlur = () => {
+      if (session?.status === "active") {
         setTabWarning(true);
+        setTabSwitches(c => c + 1);
         setTimeout(() => setTabWarning(false), 4000);
       }
     };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, [session]);
+
+  // Paste tracker
+  useEffect(() => {
+    const onPaste = () => {
+      if (session?.status === "active") {
+        const now = Date.now();
+        const recent = pasteTimesRef.current.filter(t => now - t < 5000);
+        recent.push(now);
+        pasteTimesRef.current = recent;
+        // Count as a burst if they pasted more than 2 times in 5 seconds
+        if (recent.length > 2) {
+          setPasteBursts(c => c + 1);
+          // reset to avoid double-counting same burst
+          pasteTimesRef.current = [];
+        }
+      }
+    };
+    // Use capture: true to intercept the event before Monaco Editor can stop propagation
+    window.addEventListener("paste", onPaste, { capture: true });
+    return () => window.removeEventListener("paste", onPaste, { capture: true });
   }, [session]);
 
   useEffect(() => {
@@ -109,7 +138,10 @@ export default function TestPage() {
     setSubmitting(true);
     setShowSubmitConfirm(false);
     try {
-      await sessionsApi.submit(sessionId);
+      await sessionsApi.submit(sessionId, {
+        tab_switches: tabSwitches,
+        paste_bursts: pasteBursts,
+      });
       setSubmitted(true);
       setTimeout(() => router.push(`/report/${sessionId}`), 1200);
     } catch {
@@ -382,10 +414,22 @@ export default function TestPage() {
                   problemId={activeQ.coding.id}
                   sessionId={sessionId}
                   disabled={disabled}
-                  initialData={session.code_submissions?.[activeQ.coding.id]}
+                  initialData={localCode[activeQ.coding.id] || session.code_submissions?.[activeQ.coding.id]}
+                  onChange={(code, language) => {
+                    setLocalCode(prev => ({
+                      ...prev,
+                      [activeQ.coding!.id]: { ...(prev[activeQ.coding!.id] || {}), code, language }
+                    }));
+                  }}
                   onSubmit={(result) => {
                     if (result.verdict === "accepted" && activeQ.coding) {
                       setSolvedCoding((s) => new Set([...s, activeQ.coding!.id]));
+                    }
+                    if (activeQ.coding) {
+                      setLocalCode(prev => ({
+                        ...prev,
+                        [activeQ.coding!.id]: { ...(prev[activeQ.coding!.id] || {}), verdict: result.verdict }
+                      }));
                     }
                   }}
                 />
@@ -408,9 +452,14 @@ export default function TestPage() {
                       options={activeQ.mcq.options}
                       sessionId={sessionId}
                       disabled={disabled}
-                      initialData={session.mcq_answers?.[activeQ.mcq.id]}
-                      onAnswer={(mcqId) => {
+                      initialData={
+                        localMcqAnswers[activeQ.mcq.id]
+                          ? { chosen_option: localMcqAnswers[activeQ.mcq.id], is_correct: false, correct_option: "" }
+                          : session.mcq_answers?.[activeQ.mcq.id]
+                      }
+                      onAnswer={(mcqId, chosenOption) => {
                         setAnsweredMCQs((s) => new Set([...s, mcqId]));
+                        setLocalMcqAnswers(prev => ({ ...prev, [mcqId]: chosenOption }));
                       }}
                     />
                   )}

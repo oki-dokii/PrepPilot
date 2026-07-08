@@ -3,15 +3,20 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User as UserIcon, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { COMPANY_PRESETS, CompanyPreset } from "@/lib/companyPresets";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 interface ChatSetupProps {
-  onTestReady: (testId: string) => void;
+  onTestReady: (sessionId: string) => void;
   onCancel: () => void;
+  onCohortReady?: (inviteCode: string) => void;
+  onScheduleReady?: (testId: string, duration: number) => void;
+  weakTopics?: { label: string; id: string; mastery: number }[];
+  initialMessage?: string;
 }
 
-export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
+export default function ChatSetup({ onTestReady, onCancel, onCohortReady, onScheduleReady, weakTopics, initialMessage }: ChatSetupProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -27,6 +32,17 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, generatingTest, proposedBlueprint]);
+
+  // Auto-send initialMessage on mount after 300ms delay
+  useEffect(() => {
+    if (initialMessage && initialMessage.trim()) {
+      const timer = setTimeout(() => {
+        handleSend(initialMessage);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSend = async (overrideInput?: string) => {
     const textToSend = overrideInput ?? input;
@@ -80,6 +96,57 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
     }
   };
 
+  const handleHostCohort = async () => {
+    if (!proposedBlueprint || !onCohortReady) return;
+    setGeneratingTest(true);
+    try {
+      const genRes = await api.post("/api/tests/generate", {
+         topic: "Custom Assessment",
+         difficulty: proposedBlueprint.difficulty || "medium",
+         blueprint: proposedBlueprint.blueprint,
+         duration_minutes: proposedBlueprint.duration_minutes || 90
+      });
+      
+      const testId = genRes.data.id;
+      const { cohortsApi } = await import("@/lib/api");
+      const cohortRes = await cohortsApi.create(testId, "Mock OA " + new Date().toLocaleDateString());
+      onCohortReady(cohortRes.data.invite_code);
+    } catch (err) {
+      console.error(err);
+      setGeneratingTest(false);
+      alert("Failed to host cohort. Please try again.");
+    }
+  };
+
+  const handleScheduleEvent = async () => {
+    if (!proposedBlueprint || !onScheduleReady) return;
+    setGeneratingTest(true);
+    try {
+      const genRes = await api.post("/api/tests/generate", {
+         topic: "Scheduled Assessment",
+         difficulty: proposedBlueprint.difficulty || "medium",
+         blueprint: proposedBlueprint.blueprint,
+         duration_minutes: proposedBlueprint.duration_minutes || 90
+      });
+      onScheduleReady(genRes.data.id, proposedBlueprint.duration_minutes || 90);
+    } catch (err) {
+      console.error(err);
+      setGeneratingTest(false);
+      alert("Failed to generate test for scheduling. Please try again.");
+    }
+  };
+
+  const handleSmartStart = () => {
+    if (!weakTopics || weakTopics.length === 0) return;
+    const message = `I want to focus on my weak areas: ${weakTopics.map(t => `${t.label} (${Math.round(t.mastery * 100)}%)`).join(', ')}. Build a test targeting these specifically.`;
+    handleSend(message);
+  };
+
+  const handlePreset = (preset: CompanyPreset) => {
+    const message = `I want to prepare for a ${preset.company} interview. Generate a ${preset.duration_minutes}-minute test with ${preset.mcq_count > 0 ? preset.mcq_count + ' MCQs and ' : ''}${preset.coding_count} coding problem${preset.coding_count > 1 ? 's' : ''} focusing on ${preset.topics.join(', ')} at ${preset.difficulty} difficulty.`;
+    handleSend(message);
+  };
+
   return (
     <div className="flex flex-col h-[520px] bg-background border border-border stamp-card p-0 relative select-none">
       {/* Header */}
@@ -96,6 +163,21 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
         <button onClick={onCancel} className="stamp-id text-rust hover:underline cursor-pointer">
           CANCEL
         </button>
+      </div>
+
+      {/* Company Preset Strip */}
+      <div className="px-4 py-2.5 border-b border-border bg-background/60 overflow-x-auto flex gap-2 no-scrollbar">
+        {COMPANY_PRESETS.map(preset => (
+          <button
+            key={preset.company}
+            onClick={() => handlePreset(preset)}
+            disabled={loading || generatingTest}
+            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 border border-border hover:border-blueprint hover:bg-blueprint/5 text-foreground/80 hover:text-blueprint transition-colors cursor-pointer disabled:opacity-40"
+          >
+            <span className="font-mono text-[10px] font-bold text-blueprint/70 w-5 text-center">{preset.icon}</span>
+            <span className="font-display text-[12px] whitespace-nowrap">{preset.company}</span>
+          </button>
+        ))}
       </div>
 
       {/* Messages */}
@@ -126,12 +208,33 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
                   </ul>
                   
                   <div className="flex flex-col gap-2 pt-3 border-t border-border">
-                    <button 
-                      onClick={handleConfirm}
-                      className="w-full py-2 bg-blueprint hover:bg-blueprint/90 text-chalk text-[13px] font-medium transition cursor-pointer"
-                    >
-                      Confirm & Start Test
-                    </button>
+                    <div className="flex gap-2">
+                      {onScheduleReady ? (
+                        <button 
+                          onClick={handleScheduleEvent}
+                          className="flex-1 py-2 bg-blueprint hover:bg-blueprint/90 text-chalk text-[13px] font-medium transition cursor-pointer"
+                        >
+                          Generate & Schedule Event
+                        </button>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={handleConfirm}
+                            className="flex-1 py-2 bg-blueprint hover:bg-blueprint/90 text-chalk text-[13px] font-medium transition cursor-pointer"
+                          >
+                            Start Solo Test
+                          </button>
+                          {onCohortReady && (
+                            <button 
+                              onClick={handleHostCohort}
+                              className="flex-1 py-2 bg-rust hover:bg-rust/90 text-chalk text-[13px] font-medium transition cursor-pointer"
+                            >
+                              Host Cohort OA
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                     <button 
                       onClick={() => handleSend("I want to make some changes to this blueprint.")}
                       className="w-full py-2 bg-transparent hover:bg-foreground/5 text-foreground border border-border text-[13px] font-medium transition cursor-pointer"
@@ -172,8 +275,22 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
         </div>
       )}
 
-      {/* Input Form */}
+      {/* Footer: Smart Start + Input Form */}
       <div className="p-4 border-t border-border bg-background/95 z-10">
+        {/* Smart Start button — shown only when weakTopics exist */}
+        {weakTopics && weakTopics.length > 0 && (
+          <button
+            onClick={handleSmartStart}
+            disabled={loading || generatingTest}
+            className="w-full mb-2 flex items-center justify-center gap-2 h-9 border border-blueprint/50 bg-blueprint/5 hover:bg-blueprint/10 text-blueprint text-[12.5px] font-medium transition-colors cursor-pointer disabled:opacity-40"
+          >
+            <span>⚡ Focus My Weak Areas</span>
+            <span className="font-mono text-[10px] text-blueprint/60">
+              ({weakTopics.map(t => t.label).join(', ')})
+            </span>
+          </button>
+        )}
+
         <form 
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}
           className="flex items-center gap-2 border border-border bg-background p-1.5 focus-within:border-blueprint transition"

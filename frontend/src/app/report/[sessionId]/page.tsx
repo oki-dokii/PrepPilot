@@ -7,7 +7,7 @@ import { reportsApi } from "@/lib/api";
 import Link from "next/link";
 import { LayoutWrapper, StampCard } from "@/components/LayoutWrapper";
 import { MasteryGraph, DEFAULT_NODES } from "@/components/MasteryGraph";
-import { Loader2, Brain, ArrowRight } from "lucide-react";
+import { Loader2, Brain, ArrowRight, AlertTriangle } from "lucide-react";
 
 interface QuestionFeedback {
   question_type: "mcq" | "coding";
@@ -33,6 +33,8 @@ interface ReportData {
   };
   status: "ready" | "processing";
   generated_at?: string;
+  tab_switches: number;
+  paste_bursts: number;
 }
 
 export default function ReportPage() {
@@ -161,8 +163,18 @@ export default function ReportPage() {
             <div className="font-display text-[14px]">Movement map</div>
             <div className="stamp-id">GRAPH · Δ · {shortId}</div>
           </div>
-          <div className="border border-border/80 p-2 bg-background/30">
+          <div className="border border-border/80 p-2 bg-background/30 mb-4">
             <MasteryGraph size="md" animate highlight={weakNodeIds} />
+          </div>
+
+          <div className="flex items-center gap-4 border-t border-border pt-4 mt-2">
+            <div>
+              <div className="stamp-id mb-0.5 flex items-center gap-1 text-rust"><AlertTriangle size={10} /> INTEGRITY FLAGS</div>
+              <div className="flex gap-4 mt-2">
+                <div className="font-mono text-[12px] text-foreground/80">Tab Switches: <strong className={report.tab_switches > 0 ? "text-rust" : ""}>{report.tab_switches}</strong></div>
+                <div className="font-mono text-[12px] text-foreground/80">Paste Bursts: <strong className={report.paste_bursts > 0 ? "text-rust" : ""}>{report.paste_bursts}</strong></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -16,6 +16,7 @@ LANGUAGE_MAP = {
     "python3":    "python3",
     "javascript": "node",
     "cpp":        "c++",
+    "java":       "java",
 }
 
 def _normalize_output(s: str) -> str:
@@ -66,6 +67,7 @@ async def run_against_hidden_tests(
     code: str,
     language: str,
     db: AsyncSession,
+    is_run: bool = False,
 ) -> Tuple[Verdict, int, int, int, Optional[str]]:
     """
     Returns: (verdict, runtime_ms, passed_count, total_count, error_output)
@@ -75,6 +77,8 @@ async def run_against_hidden_tests(
         select(TestCase).where(TestCase.problem_id == problem_id)
     )
     test_cases = result.scalars().all()
+    if is_run:
+        test_cases = [tc for tc in test_cases if not tc.is_hidden]
     total = len(test_cases)
 
     if total == 0:
