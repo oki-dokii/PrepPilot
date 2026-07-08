@@ -259,3 +259,88 @@ async def join_event(
     }, ttl_seconds=event.duration_minutes * 60 + 300)
 
     return JoinEventResponse(session_id=session.id, message="Joined successfully")
+
+
+# ─── Leaderboard ──────────────────────────────────────────────────────────────
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    user_name: str
+    score: Optional[int]
+    percentile: float  # 0–100: % of submitted participants this user beat
+    status: str
+    is_me: bool
+
+
+@router.get("/{slug}/leaderboard", response_model=List[LeaderboardEntry])
+async def get_event_leaderboard(
+    slug: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the ranked leaderboard for a scheduled event."""
+    from app.models.models import Report, SessionStatus
+    from sqlalchemy.orm import selectinload
+
+    event_res = await db.execute(select(ScheduledEvent).where(ScheduledEvent.slug == slug))
+    event = event_res.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # Load all sessions for this event, with user and report
+    sessions_res = await db.execute(
+        select(Session)
+        .where(Session.event_id == event.id)
+        .options(selectinload(Session.user), selectinload(Session.report))
+    )
+    sessions = sessions_res.scalars().all()
+
+    # Build raw entries
+    entries = []
+    for s in sessions:
+        report = s.report if s else None
+        score = report.total_score if report else None
+        status = s.status.value if s else "pending"
+        display_name = (
+            s.user.full_name or s.user.email.split("@")[0]
+            if s.user else "Anonymous"
+        )
+        entries.append({
+            "user_name": display_name,
+            "score": score,
+            "status": status,
+            "is_me": s.user_id == current_user.id,
+        })
+
+    # Sort: submitted with highest scores first, then active, then pending
+    def sort_key(e):
+        if e["score"] is None:
+            return (-1, 0)
+        return (1, e["score"])
+
+    entries.sort(key=sort_key, reverse=True)
+
+    # Assign ranks and compute percentiles
+    submitted = [e for e in entries if e["score"] is not None]
+    n_submitted = len(submitted)
+
+    result_list = []
+    for rank_idx, entry in enumerate(entries):
+        if entry["score"] is not None and n_submitted > 1:
+            beaten = sum(1 for e in submitted if e["score"] < entry["score"])
+            percentile = round((beaten / (n_submitted - 1)) * 100, 1)
+        elif n_submitted == 1 and entry["score"] is not None:
+            percentile = 100.0
+        else:
+            percentile = 0.0
+
+        result_list.append(LeaderboardEntry(
+            rank=rank_idx + 1,
+            user_name=entry["user_name"],
+            score=entry["score"],
+            percentile=percentile,
+            status=entry["status"],
+            is_me=entry["is_me"],
+        ))
+
+    return result_list

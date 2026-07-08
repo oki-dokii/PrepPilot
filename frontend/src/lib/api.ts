@@ -90,19 +90,6 @@ export const reportsApi = {
   get: (sessionId: string) => api.get(`/api/reports/${sessionId}`),
 };
 
-// ─── Cohorts ──────────────────────────────────────────────────────────────────
-
-export const cohortsApi = {
-  create: (testId: string, name: string) => 
-    api.post("/api/cohorts/", { test_id: testId, name }),
-  join: (inviteCode: string) => 
-    api.post(`/api/cohorts/${inviteCode}/join`),
-  getLeaderboard: (inviteCode: string) => 
-    api.get(`/api/cohorts/${inviteCode}/leaderboard`),
-  getInfo: (inviteCode: string) =>
-    api.get(`/api/cohorts/${inviteCode}`),
-};
-
 // ─── Scheduled Events ─────────────────────────────────────────────────────────
 
 export const eventsApi = {
@@ -120,4 +107,6 @@ export const eventsApi = {
     api.get(`/api/events/${slug}`),
   join: (slug: string) =>
     api.post(`/api/events/${slug}/join`),
+  leaderboard: (slug: string) =>
+    api.get(`/api/events/${slug}/leaderboard`),
 };

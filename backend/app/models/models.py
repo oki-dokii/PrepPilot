@@ -224,36 +224,8 @@ class Report(Base):
     session = relationship("Session", back_populates="report")
 
 
-class Cohort(Base):
-    """A shared mock OA that multiple users can join with an invite code."""
-    __tablename__ = "cohorts"
-
-    id = Column(String(36), primary_key=True, default=gen_uuid)
-    name = Column(String(255), nullable=False)
-    test_template_id = Column(String(36), ForeignKey("tests.id"), nullable=False)  # template test cloned per member
-    invite_code = Column(String(12), unique=True, nullable=False, index=True)
-    created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    expires_at = Column(DateTime(timezone=True), nullable=True)
-
-    creator = relationship("User", foreign_keys=[created_by])
-    members = relationship("CohortMember", back_populates="cohort")
-    template_test = relationship("Test", foreign_keys=[test_template_id])
 
 
-class CohortMember(Base):
-    """A user who has joined a cohort and optionally has a session linked."""
-    __tablename__ = "cohort_members"
-
-    id = Column(String(36), primary_key=True, default=gen_uuid)
-    cohort_id = Column(String(36), ForeignKey("cohorts.id"), nullable=False)
-    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
-    session_id = Column(String(36), ForeignKey("sessions.id"), nullable=True)  # set when they start the test
-    joined_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    cohort = relationship("Cohort", back_populates="members")
-    user = relationship("User", foreign_keys=[user_id])
-    session = relationship("Session", foreign_keys=[session_id])
 
 
 class ScheduledEvent(Base):
