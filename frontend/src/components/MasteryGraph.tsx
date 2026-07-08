@@ -11,35 +11,90 @@ export type MasteryNode = {
 };
 export type MasteryEdge = { from: string; to: string };
 
-export const DEFAULT_NODES: MasteryNode[] = [
-  { id: "arr",  label: "Arrays",         x: 80,  y: 200, mastery: 0.82 },
-  { id: "ps",   label: "Prefix Sum",     x: 220, y: 120, mastery: 0.64 },
-  { id: "sw",   label: "Sliding Window", x: 360, y: 180, mastery: 0.48 },
-  { id: "bs",   label: "Binary Search",  x: 220, y: 300, mastery: 0.71 },
-  { id: "gr",   label: "Greedy",         x: 500, y: 100, mastery: 0.32 },
-  { id: "dp",   label: "Interval DP",    x: 520, y: 260, mastery: 0.18 },
-  { id: "uf",   label: "Union-Find",     x: 660, y: 180, mastery: 0.12 },
-  { id: "gph",  label: "Graphs",         x: 400, y: 380, mastery: 0.55 },
-  { id: "trie", label: "Trie",           x: 640, y: 360, mastery: 0.28 },
+// Canonical topic graph — mastery always starts at 0, set dynamically
+export const CANONICAL_NODES: MasteryNode[] = [
+  { id: "arr",  label: "Arrays",          x: 80,  y: 200, mastery: 0 },
+  { id: "ps",   label: "Prefix Sum",      x: 220, y: 120, mastery: 0 },
+  { id: "sw",   label: "Sliding Window",  x: 360, y: 180, mastery: 0 },
+  { id: "bs",   label: "Binary Search",   x: 220, y: 300, mastery: 0 },
+  { id: "gr",   label: "Greedy",          x: 500, y: 100, mastery: 0 },
+  { id: "dp",   label: "Dynamic Prog.",   x: 520, y: 260, mastery: 0 },
+  { id: "uf",   label: "Union-Find",      x: 660, y: 180, mastery: 0 },
+  { id: "gph",  label: "Graphs",          x: 400, y: 380, mastery: 0 },
+  { id: "trie", label: "Trie",            x: 640, y: 360, mastery: 0 },
+  { id: "str",  label: "Strings",         x: 80,  y: 360, mastery: 0 },
+  { id: "ht",   label: "Hash Tables",     x: 220, y: 420, mastery: 0 },
+  { id: "stk",  label: "Stack/Queue",     x: 360, y: 300, mastery: 0 },
 ];
 
 export const DEFAULT_EDGES: MasteryEdge[] = [
   { from: "arr", to: "ps" },
   { from: "arr", to: "bs" },
-  { from: "ps", to: "sw" },
-  { from: "sw", to: "gr" },
-  { from: "bs", to: "gph" },
-  { from: "gr", to: "dp" },
-  { from: "dp", to: "uf" },
+  { from: "arr", to: "str" },
+  { from: "arr", to: "ht" },
+  { from: "ps",  to: "sw" },
+  { from: "sw",  to: "gr" },
+  { from: "bs",  to: "gph" },
+  { from: "gr",  to: "dp" },
+  { from: "dp",  to: "uf" },
   { from: "gph", to: "trie" },
   { from: "gph", to: "dp" },
-  { from: "sw", to: "dp" },
+  { from: "sw",  to: "dp" },
+  { from: "str", to: "ht" },
+  { from: "stk", to: "gph" },
+  { from: "arr", to: "stk" },
 ];
+
+// Keep backward-compat alias
+export const DEFAULT_NODES = CANONICAL_NODES;
+
+// Maps topic text (from session spec) → canonical node id
+const TOPIC_ALIASES: Record<string, string> = {
+  // Arrays
+  "arrays": "arr", "array": "arr", "two pointers": "arr",
+  // Prefix Sum
+  "prefix sum": "ps", "prefix": "ps",
+  // Sliding Window
+  "sliding window": "sw",
+  // Binary Search
+  "binary search": "bs", "search": "bs",
+  // Greedy
+  "greedy": "gr",
+  // Dynamic Programming
+  "dynamic programming": "dp", "dp": "dp", "interval dp": "dp",
+  "knapsack": "dp", "memoization": "dp",
+  // Union Find
+  "union find": "uf", "union-find": "uf", "disjoint set": "uf",
+  // Graphs
+  "graphs": "gph", "graph": "gph", "bfs": "gph", "dfs": "gph",
+  "trees": "gph", "tree": "gph", "traversal": "gph",
+  // Trie
+  "trie": "trie", "tries": "trie",
+  // Strings
+  "strings": "str", "string": "str", "anagram": "str",
+  "palindrome": "str",
+  // Hash Tables
+  "hash tables": "ht", "hash table": "ht", "hashing": "ht",
+  "hashmap": "ht", "hash map": "ht",
+  // Stack/Queue
+  "stack": "stk", "queue": "stk", "stacks": "stk", "queues": "stk",
+  "monotonic stack": "stk",
+};
+
+export function resolveTopicToNodeId(topic: string): string | null {
+  const key = topic.toLowerCase().trim();
+  if (TOPIC_ALIASES[key]) return TOPIC_ALIASES[key];
+  // Partial match
+  for (const [alias, nodeId] of Object.entries(TOPIC_ALIASES)) {
+    if (key.includes(alias) || alias.includes(key)) return nodeId;
+  }
+  return null;
+}
 
 type Size = "sm" | "md" | "lg";
 
 export function MasteryGraph({
-  nodes = DEFAULT_NODES,
+  nodes = CANONICAL_NODES,
   edges = DEFAULT_EDGES,
   size = "lg",
   animate = false,
@@ -99,7 +154,11 @@ export function MasteryGraph({
         const cx = n.x * scaleX;
         const cy = n.y * scaleY;
         const hl = highlight?.includes(n.id);
-        const fill = empty ? "rgba(18,20,26,0.08)" : `rgba(76, 122, 98, ${0.15 + n.mastery * 0.75})`;
+        const fill = empty
+          ? "rgba(18,20,26,0.08)"
+          : n.mastery === 0
+          ? "rgba(18,20,26,0.12)"
+          : `rgba(76, 122, 98, ${0.15 + n.mastery * 0.75})`;
         return (
           <g
             key={n.id}
@@ -122,7 +181,7 @@ export function MasteryGraph({
                 >
                   {n.label}
                 </text>
-                {!empty && size === "lg" && (
+                {!empty && size === "lg" && n.mastery > 0 && (
                   <text
                     x={cx}
                     y={cy + 3}

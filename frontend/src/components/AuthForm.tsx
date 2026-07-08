@@ -40,20 +40,20 @@ export function AuthForm({ mode }: AuthFormProps) {
   };
 
   return (
-    <div className="stamp-card p-8 w-full max-w-md mx-auto animate-fadeUp bg-chalk">
+    <div className="stamp-card p-8 w-full max-w-md mx-auto animate-fadeUp bg-background">
       {/* Logo */}
       <div className="flex items-center gap-2 mb-8">
         <LogoMark />
-        <span className="font-display text-[15px] font-medium tracking-tight text-ink">PrepPilot</span>
+        <span className="font-display text-[15px] font-medium tracking-tight text-foreground">PrepPilot</span>
       </div>
 
       <div className="stamp-id mb-1">
         {mode === "login" ? "DOC-AUTH-01 · SIGN IN" : "DOC-AUTH-02 · REGISTER"}
       </div>
-      <h1 className="font-display text-[26px] font-semibold text-ink mb-1">
+      <h1 className="font-display text-[26px] font-semibold text-foreground mb-1">
         {mode === "login" ? "Welcome back" : "Create your account"}
       </h1>
-      <p className="text-[13.5px] text-ink/60 mb-8 leading-relaxed">
+      <p className="text-[13.5px] text-foreground/60 mb-8 leading-relaxed">
         {mode === "login"
           ? "Sign in to continue your prep session."
           : "Start practicing with AI-generated assessments."}
@@ -69,7 +69,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               placeholder="Alex Johnson"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full h-10 px-3 bg-chalk border border-line focus:border-blueprint focus:outline-none text-[14px] font-display transition-colors"
+              className="w-full h-10 px-3 bg-background border border-border focus:border-blueprint focus:outline-none text-[14px] font-display transition-colors"
             />
           </div>
         )}
@@ -83,7 +83,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full h-10 px-3 bg-chalk border border-line focus:border-blueprint focus:outline-none text-[14px] font-display transition-colors"
+            className="w-full h-10 px-3 bg-background border border-border focus:border-blueprint focus:outline-none text-[14px] font-display transition-colors"
           />
         </div>
 
@@ -98,12 +98,12 @@ export function AuthForm({ mode }: AuthFormProps) {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full h-10 px-3 pr-10 bg-chalk border border-line focus:border-blueprint focus:outline-none text-[14px] font-display transition-colors"
+              className="w-full h-10 px-3 pr-10 bg-background border border-border focus:border-blueprint focus:outline-none text-[14px] font-display transition-colors"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink/70 transition-colors cursor-pointer"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/70 transition-colors cursor-pointer"
             >
               {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>

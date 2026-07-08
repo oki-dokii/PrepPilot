@@ -27,7 +27,7 @@ import google.generativeai as genai
 from app.core.config import settings
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
-model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+model = genai.GenerativeModel(model_name="gemini-flash-lite-latest")
 chat = model.start_chat(history=history)
 try:
     response = chat.send_message(req.messages[-1].content)

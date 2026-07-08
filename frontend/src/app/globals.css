@@ -165,8 +165,8 @@
 /* Stamped-card corner marks — a structural device, not decoration */
 @utility stamp-card {
   position: relative;
-  background: var(--chalk);
-  border: 1px solid var(--line);
+  background: var(--background);
+  border: 1px solid var(--border);
 }
 .stamp-card::before,
 .stamp-card::after {
@@ -174,7 +174,7 @@
   position: absolute;
   width: 10px;
   height: 10px;
-  border-color: var(--line);
+  border-color: var(--border);
   border-style: solid;
   border-width: 0;
 }
@@ -182,13 +182,13 @@
   top: -1px; left: -1px;
   border-top-width: 1px;
   border-left-width: 1px;
-  border-color: var(--ink);
+  border-color: var(--foreground);
 }
 .stamp-card::after {
   bottom: -1px; right: -1px;
   border-bottom-width: 1px;
   border-right-width: 1px;
-  border-color: var(--ink);
+  border-color: var(--foreground);
 }
 
 @utility stamp-id {
@@ -291,13 +291,13 @@
 }
 
 .card {
-  background: var(--chalk);
-  border: 1px solid var(--line);
+  background: var(--background);
+  border: 1px solid var(--border);
   padding: 1.5rem;
 }
 .glass {
-  background: var(--chalk);
-  border: 1px solid var(--line);
+  background: var(--background);
+  border: 1px solid var(--border);
 }
 .spinner {
   width: 20px; height: 20px;

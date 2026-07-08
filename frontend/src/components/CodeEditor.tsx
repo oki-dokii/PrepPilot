@@ -21,6 +21,7 @@ interface CodeEditorProps {
   problemId: string;
   sessionId: string;
   disabled: boolean;
+  initialData?: { code: string; language: string; verdict: string };
   onSubmit?: (result: SubmissionResult) => void;
 }
 
@@ -80,11 +81,18 @@ const VERDICT_META: Record<string, { label: string; color: string }> = {
   pending:       { label: "Pending…", color: "rgba(236,234,228,0.5)" },
 };
 
-export function CodeEditor({ problemId, sessionId, disabled, onSubmit }: CodeEditorProps) {
-  const [language, setLanguage] = useState("python3");
-  const [code, setCode] = useState(STARTERS.python3);
+export function CodeEditor({ problemId, sessionId, disabled, initialData, onSubmit }: CodeEditorProps) {
+  const [language, setLanguage] = useState(initialData?.language || "python3");
+  const [code, setCode] = useState(initialData?.code || STARTERS[initialData?.language || "python3"]);
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<SubmissionResult | null>(null);
+  const [result, setResult] = useState<SubmissionResult | null>(
+    initialData ? {
+      verdict: initialData.verdict,
+      runtime_ms: null,
+      passed_hidden_count: 0,
+      total_hidden_count: 0,
+    } : null
+  );
   const [apiError, setApiError] = useState("");
   const editorRef = useRef<any>(null);
 

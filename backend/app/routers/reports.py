@@ -54,6 +54,25 @@ async def get_report(
             status="processing",
         )
 
+    # Regenerate old placeholder/fallback reports if Gemini is now active
+    summary = report.summary or {}
+    overall = summary.get("overall_feedback", "")
+    if "Anthropic" in overall or "unavailable" in overall:
+        from app.services.llm import generate_feedback_with_gemini
+        from app.core.config import settings
+        if settings.GEMINI_API_KEY:
+            try:
+                ai_feedback = await generate_feedback_with_gemini(summary)
+                if ai_feedback:
+                    new_summary = dict(summary)
+                    new_summary["overall_feedback"] = ai_feedback.get("overall_feedback", "")
+                    new_summary["study_plan"] = ai_feedback.get("study_plan", [])
+                    report.summary = new_summary
+                    db.add(report)
+                    await db.flush()
+            except Exception:
+                pass
+
     return ReportResponse(
         id=report.id,
         session_id=report.session_id,

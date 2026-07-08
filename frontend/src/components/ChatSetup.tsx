@@ -81,15 +81,15 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
   };
 
   return (
-    <div className="flex flex-col h-[520px] bg-chalk border border-line stamp-card p-0 relative select-none">
+    <div className="flex flex-col h-[520px] bg-background border border-border stamp-card p-0 relative select-none">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-chalk/90 z-10">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-background/90 z-10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blueprint/10 text-blueprint flex items-center justify-center border border-blueprint/20">
             <Bot size={16} />
           </div>
           <div>
-            <h3 className="font-display text-[14px] font-semibold text-ink leading-tight">Prep Coordinator</h3>
+            <h3 className="font-display text-[14px] font-semibold text-foreground leading-tight">Prep Coordinator</h3>
             <p className="stamp-id text-[9px]">DOC-04 · CONVERSATION STAGE</p>
           </div>
         </div>
@@ -102,30 +102,30 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
       <div className="flex-1 overflow-y-auto p-5 space-y-4 relative bg-grid-fine">
         {messages.map((m, i) => (
           <div key={i} className={`flex gap-3 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
-            <div className={`w-8 h-8 shrink-0 flex items-center justify-center border ${m.role === "user" ? "bg-graphite text-chalk border-line" : "bg-blueprint/10 text-blueprint border-blueprint/25"}`}>
+            <div className={`w-8 h-8 shrink-0 flex items-center justify-center border ${m.role === "user" ? "bg-graphite text-chalk border-border" : "bg-blueprint/10 text-blueprint border-blueprint/25"}`}>
               {m.role === "user" ? <UserIcon size={13} /> : <Bot size={14} />}
             </div>
-            <div className={`max-w-[80%] p-4 border text-[13.5px] leading-relaxed ${m.role === "user" ? "bg-chalk text-ink border-line" : "bg-chalk/90 text-ink/90 border-line"}`}>
+            <div className={`max-w-[80%] p-4 border text-[13.5px] leading-relaxed ${m.role === "user" ? "bg-background text-foreground border-border" : "bg-background/90 text-foreground/90 border-border"}`}>
               <p className="whitespace-pre-line">{m.content}</p>
               
               {/* If this is the last message and we have a proposed blueprint, render it! */}
               {i === messages.length - 1 && proposedBlueprint && (
-                <div className="mt-4 p-4 border border-line bg-chalk/60">
-                  <div className="flex items-baseline justify-between mb-3 border-b border-line pb-2">
-                    <span className="font-display text-[14px] text-ink font-semibold">TEST BLUEPRINT</span>
-                    <span className="font-mono text-[10.5px] text-ink/60">{proposedBlueprint.duration_minutes} MINS</span>
+                <div className="mt-4 p-4 border border-border bg-background/60">
+                  <div className="flex items-baseline justify-between mb-3 border-b border-border pb-2">
+                    <span className="font-display text-[14px] text-foreground font-semibold">TEST BLUEPRINT</span>
+                    <span className="font-mono text-[10.5px] text-foreground/60">{proposedBlueprint.duration_minutes} MINS</span>
                   </div>
-                  <ul className="space-y-2 mb-4 font-mono text-[12px] text-ink/80">
+                  <ul className="space-y-2 mb-4 font-mono text-[12px] text-foreground/80">
                     {Array.isArray(proposedBlueprint.blueprint) && proposedBlueprint.blueprint.map((item: any, idx: number) => (
                       <li key={idx} className="flex gap-2">
                         <span className="text-blueprint font-bold uppercase w-12">{item.type}</span>
                         <span className="flex-1">{item.topic}</span>
-                        <span className="uppercase text-[10px] text-ink/50 border border-line/50 px-1">{item.difficulty}</span>
+                        <span className="uppercase text-[10px] text-foreground/50 border border-border/50 px-1">{item.difficulty}</span>
                       </li>
                     ))}
                   </ul>
                   
-                  <div className="flex flex-col gap-2 pt-3 border-t border-line">
+                  <div className="flex flex-col gap-2 pt-3 border-t border-border">
                     <button 
                       onClick={handleConfirm}
                       className="w-full py-2 bg-blueprint hover:bg-blueprint/90 text-chalk text-[13px] font-medium transition cursor-pointer"
@@ -134,7 +134,7 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
                     </button>
                     <button 
                       onClick={() => handleSend("I want to make some changes to this blueprint.")}
-                      className="w-full py-2 bg-transparent hover:bg-ink/5 text-ink border border-line text-[13px] font-medium transition cursor-pointer"
+                      className="w-full py-2 bg-transparent hover:bg-foreground/5 text-foreground border border-border text-[13px] font-medium transition cursor-pointer"
                     >
                       I want to make changes
                     </button>
@@ -150,7 +150,7 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
             <div className="w-8 h-8 bg-blueprint/10 text-blueprint flex items-center justify-center border border-blueprint/25">
               <Bot size={14} />
             </div>
-            <div className="p-3 border border-line flex items-center gap-1.5 h-10 bg-chalk/80">
+            <div className="p-3 border border-border flex items-center gap-1.5 h-10 bg-background/80">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blueprint animate-bounce" style={{ animationDelay: "0ms" }} />
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blueprint animate-bounce" style={{ animationDelay: "150ms" }} />
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blueprint animate-bounce" style={{ animationDelay: "300ms" }} />
@@ -163,9 +163,9 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
 
       {/* Loading Overlay when generating test */}
       {generatingTest && (
-        <div className="absolute inset-0 bg-chalk/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
+        <div className="absolute inset-0 bg-background/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
           <Loader2 className="w-8 h-8 animate-spin text-blueprint mb-4" />
-          <h3 className="font-display text-[16px] text-ink font-semibold mb-2">Generating session...</h3>
+          <h3 className="font-display text-[16px] text-foreground font-semibold mb-2">Generating session...</h3>
           <p className="stamp-id max-w-xs leading-relaxed text-[11px]">
             Please wait while the AI compiles the test problems and sets up execution sandboxes.
           </p>
@@ -173,10 +173,10 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
       )}
 
       {/* Input Form */}
-      <div className="p-4 border-t border-line bg-chalk/95 z-10">
+      <div className="p-4 border-t border-border bg-background/95 z-10">
         <form 
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-          className="flex items-center gap-2 border border-line bg-chalk p-1.5 focus-within:border-blueprint transition"
+          className="flex items-center gap-2 border border-border bg-background p-1.5 focus-within:border-blueprint transition"
         >
           <input
             type="text"
@@ -184,7 +184,7 @@ export default function ChatSetup({ onTestReady, onCancel }: ChatSetupProps) {
             onChange={e => setInput(e.target.value)}
             disabled={loading || generatingTest}
             placeholder="Microsoft SWE, 3 Coding questions..."
-            className="flex-1 bg-transparent border-none outline-none px-3 text-[14px] text-ink placeholder-ink/35 font-display"
+            className="flex-1 bg-transparent border-none outline-none px-3 text-[14px] text-foreground placeholder-ink/35 font-display"
           />
           <button 
             type="submit" 

@@ -10,11 +10,14 @@ interface MCQPanelProps {
   sessionId: string;
   onAnswer: (mcqId: string) => void;
   disabled: boolean;
+  initialData?: { chosen_option: string; is_correct: boolean; correct_option: string };
 }
 
-export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabled }: MCQPanelProps) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [result, setResult] = useState<{ is_correct: boolean; correct_option: string } | null>(null);
+export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabled, initialData }: MCQPanelProps) {
+  const [selected, setSelected] = useState<string | null>(initialData?.chosen_option || null);
+  const [result, setResult] = useState<{ is_correct: boolean; correct_option: string } | null>(
+    initialData ? { is_correct: initialData.is_correct, correct_option: initialData.correct_option } : null
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const entries = Object.entries(options);

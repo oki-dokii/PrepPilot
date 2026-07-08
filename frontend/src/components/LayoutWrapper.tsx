@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function LayoutWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -20,8 +21,8 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
     : (user?.email ? user.email.slice(0, 2).toUpperCase() : "U");
 
   return (
-    <div className="min-h-screen bg-chalk text-ink bg-grid flex flex-col">
-      <header className="border-b border-line bg-chalk/80 backdrop-blur-sm sticky top-0 z-20">
+    <div className="min-h-screen bg-background text-foreground bg-grid flex flex-col">
+      <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-20">
         <div className="mx-auto max-w-[1240px] px-6 h-14 flex items-center gap-8">
           <Link href="/dashboard" className="flex items-center gap-2">
             <LogoMark />
@@ -38,7 +39,7 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
                     "px-3 py-1.5 rounded-sm transition-colors " +
                     (active
                       ? "bg-blueprint/10 text-blueprint font-medium"
-                      : "text-ink/70 hover:text-ink hover:bg-ink/5")
+                      : "text-foreground/70 hover:text-foreground hover:bg-foreground/5")
                   }
                 >
                   {n.label}
@@ -49,13 +50,14 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 stamp-id">
               <span>ACTIVE · PREP</span>
-              <span className="text-ink">LIVE</span>
+              <span className="text-foreground">LIVE</span>
             </div>
             {user && (
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-graphite text-chalk grid place-items-center font-mono text-[11px] shrink-0">
+                <div className="h-8 w-8 rounded-full bg-foreground text-background grid place-items-center font-mono text-[11px] shrink-0">
                   {initials}
                 </div>
+                <ThemeToggle />
                 <button
                   onClick={logout}
                   className="stamp-id hover:text-rust transition-colors cursor-pointer"
@@ -70,7 +72,7 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
       
       <main className="mx-auto max-w-[1240px] px-6 py-10 flex-1 w-full">{children}</main>
       
-      <footer className="border-t border-line mt-16 bg-chalk/40">
+      <footer className="border-t border-border mt-16 bg-background/40">
         <div className="mx-auto max-w-[1240px] px-6 h-14 flex items-center justify-between stamp-id">
           <span>PREPPILOT · BLUEPRINT EDITION</span>
           <span>SHEET 01 / 01</span>

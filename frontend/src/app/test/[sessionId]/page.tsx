@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { sessionsApi } from "@/lib/api";
 import { CountdownTimer } from "@/components/CountdownTimer";
@@ -45,24 +45,29 @@ interface SessionData {
   started_at: string;
   expires_at: string;
   questions: Question[];
+  mcq_answers?: Record<string, any>;
+  code_submissions?: Record<string, any>;
 }
 
 export default function TestPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const sessionId = params.sessionId as string;
+  const qParam = searchParams.get("q");
 
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(qParam ? parseInt(qParam, 10) : 0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [answeredMCQs, setAnsweredMCQs] = useState<Set<string>>(new Set());
   const [solvedCoding, setSolvedCoding] = useState<Set<string>>(new Set());
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [tabWarning, setTabWarning] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Auth guard
   useEffect(() => {
@@ -81,17 +86,19 @@ export default function TestPage() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [session]);
 
-  // Load session
   useEffect(() => {
     if (!sessionId) return;
     sessionsApi.get(sessionId)
       .then((res) => {
         setSession(res.data);
         if (res.data.status === "submitted") setSubmitted(true);
+        if (qParam && !isNaN(Number(qParam)) && Number(qParam) >= 0 && Number(qParam) < res.data.questions.length) {
+          setActiveIdx(Number(qParam));
+        }
       })
       .catch(() => setError("Session not found or you don't have access."))
       .finally(() => setLoading(false));
-  }, [sessionId]);
+  }, [sessionId, qParam]);
 
   const handleExpire = useCallback(() => {
     if (!submitted) handleFinalSubmit();
@@ -157,6 +164,15 @@ export default function TestPage() {
 
       {/* ── Top bar (matches canvas exactly) ── */}
       <header className="border-b border-chalk/10 h-14 flex items-center px-6 gap-6 flex-shrink-0">
+        {/* Toggle Sidebar Button */}
+        <button
+          onClick={() => setSidebarOpen((o) => !o)}
+          className="h-9 px-3 border border-chalk/15 hover:bg-chalk/5 hover:border-chalk/30 rounded-sm font-mono text-[11px] flex items-center gap-2 cursor-pointer transition-colors"
+        >
+          <span>{sidebarOpen ? "◀" : "▶"}</span>
+          <span>QUESTIONS</span>
+        </button>
+
         {/* Timer */}
         {session.expires_at && !submitted ? (
           <CountdownTimer expiresAt={session.expires_at} onExpire={handleExpire} />
@@ -186,35 +202,7 @@ export default function TestPage() {
         </div>
       </header>
 
-      {/* ── Question navigator (matches canvas exactly) ── */}
-      <div className="border-b border-chalk/10 h-11 flex items-center px-6 gap-1 flex-shrink-0">
-        {questions.map((qq, i) => {
-          const isAnswered = qq.question_type === "mcq"
-            ? qq.mcq && answeredMCQs.has(qq.mcq.id)
-            : qq.coding && solvedCoding.has(qq.coding.id);
-          const isActive = i === activeIdx;
-          return (
-            <button
-              key={i}
-              onClick={() => setActiveIdx(i)}
-              className={
-                "h-7 px-2.5 font-mono text-[11px] flex items-center gap-2 border cursor-pointer transition-colors " +
-                (isActive
-                  ? "border-chalk text-chalk"
-                  : "border-chalk/15 text-chalk/60 hover:text-chalk hover:border-chalk/40")
-              }
-            >
-              <span>{qq.question_type === "mcq" ? "M" : "Q"}{String(i + 1).padStart(2, "0")}</span>
-              <span
-                className={
-                  "inline-block h-1.5 w-1.5 " +
-                  (isAnswered ? "bg-chalk" : "border border-chalk/30")
-                }
-              />
-            </button>
-          );
-        })}
-      </div>
+
 
       {/* ── Submit confirmation modal ── */}
       {showSubmitConfirm && (
@@ -248,7 +236,80 @@ export default function TestPage() {
       )}
 
       {/* ── Main body (matches canvas grid) ── */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* ── Vertical Collapsible Sidebar ── */}
+        <div
+          className={`bg-graphite transition-all duration-300 flex flex-col flex-shrink-0 border-chalk/10 overflow-hidden ${
+            sidebarOpen ? "w-64 border-r" : "w-0 border-r-0"
+          }`}
+        >
+          <div className="h-12 border-b border-chalk/10 flex items-center px-4 justify-between flex-shrink-0">
+            <span className="stamp-id text-chalk/60 font-semibold">QUESTION SHEET</span>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="text-chalk/40 hover:text-chalk text-[11px] font-mono cursor-pointer"
+            >
+              [ HIDE ]
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto py-2">
+            {questions.map((qq, i) => {
+              const isAnswered = qq.question_type === "mcq"
+                ? qq.mcq && answeredMCQs.has(qq.mcq.id)
+                : qq.coding && solvedCoding.has(qq.coding.id);
+              const isActive = i === activeIdx;
+              
+              let resultIcon = null;
+              if (disabled) {
+                const isCorrect = qq.question_type === "mcq"
+                  ? session.mcq_answers?.[qq.mcq?.id || ""]?.is_correct
+                  : session.code_submissions?.[qq.coding?.id || ""]?.verdict === "accepted";
+                
+                if (isCorrect) {
+                  resultIcon = <span className="text-mastery text-[12px] font-bold">✓</span>;
+                } else {
+                  resultIcon = <span className="text-rust text-[12px] font-bold">✗</span>;
+                }
+              }
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => setActiveIdx(i)}
+                  className={
+                    "w-full h-12 px-4 flex items-center justify-between font-mono text-[13px] border-l-2 transition-all cursor-pointer " +
+                    (isActive
+                      ? "bg-chalk/10 border-l-chalk text-chalk"
+                      : "border-l-transparent text-chalk/60 hover:text-chalk hover:bg-chalk/5")
+                  }
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={isAnswered ? "text-chalk font-semibold" : "text-chalk/40"}>
+                      {qq.question_type === "mcq" ? "MCQ" : "COD"}-{String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="text-[10px] opacity-40 uppercase truncate max-w-[80px]">
+                      {qq.question_type === "mcq" ? qq.mcq?.difficulty : qq.coding?.difficulty}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {resultIcon}
+                    <span
+                      className={
+                        "inline-block h-2 w-2 rounded-full " +
+                        (isAnswered ? "bg-blueprint shadow-sm shadow-blueprint" : "border border-chalk/30")
+                      }
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Main content pane ── */}
+        <div className="flex-1 min-w-0 overflow-hidden relative">
         {activeQ ? (
           isCoding && activeQ.coding ? (
             /* ── Coding: split pane ── */
@@ -321,6 +382,7 @@ export default function TestPage() {
                   problemId={activeQ.coding.id}
                   sessionId={sessionId}
                   disabled={disabled}
+                  initialData={session.code_submissions?.[activeQ.coding.id]}
                   onSubmit={(result) => {
                     if (result.verdict === "accepted" && activeQ.coding) {
                       setSolvedCoding((s) => new Set([...s, activeQ.coding!.id]));
@@ -346,6 +408,7 @@ export default function TestPage() {
                       options={activeQ.mcq.options}
                       sessionId={sessionId}
                       disabled={disabled}
+                      initialData={session.mcq_answers?.[activeQ.mcq.id]}
                       onAnswer={(mcqId) => {
                         setAnsweredMCQs((s) => new Set([...s, mcqId]));
                       }}
@@ -377,6 +440,7 @@ export default function TestPage() {
             NO QUESTIONS LOADED.
           </div>
         )}
+      </div>
       </div>
     </div>
   );

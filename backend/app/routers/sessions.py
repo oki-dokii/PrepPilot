@@ -51,6 +51,8 @@ class SessionResponse(BaseModel):
     started_at: Optional[datetime]
     expires_at: Optional[datetime]
     questions: List[QuestionOut] = []
+    mcq_answers: Optional[dict] = None
+    code_submissions: Optional[dict] = None
 
 class SessionListItem(BaseModel):
     id: str
@@ -206,17 +208,52 @@ async def get_session(
             await db.flush()
             await invalidate_session(session_id)
 
-    # Load questions for active sessions
-    questions_out: List[QuestionOut] = []
-    if session.status == SessionStatus.active:
-        result2 = await db.execute(
-            select(TestQuestion)
-            .where(TestQuestion.test_id == session.test_id)
-            .order_by(TestQuestion.order)
-            .options(selectinload(TestQuestion.problem), selectinload(TestQuestion.mcq))
+    # Load questions for all sessions
+    result2 = await db.execute(
+        select(TestQuestion)
+        .where(TestQuestion.test_id == session.test_id)
+        .order_by(TestQuestion.order)
+        .options(selectinload(TestQuestion.problem), selectinload(TestQuestion.mcq))
+    )
+    questions_db = result2.scalars().all()
+    questions_out = _build_questions_out(questions_db)
+
+    mcq_answers_out = {}
+    code_submissions_out = {}
+
+    if session.status != SessionStatus.active:
+        from app.models.models import MCQAnswer, Submission
+        
+        # Load MCQ Answers
+        user_answers = {}
+        mcq_ans_res = await db.execute(
+            select(MCQAnswer).where(MCQAnswer.session_id == session_id)
         )
-        questions_db = result2.scalars().all()
-        questions_out = _build_questions_out(questions_db)
+        for ans in mcq_ans_res.scalars().all():
+            user_answers[ans.mcq_id] = ans
+
+        for q in questions_db:
+            if q.question_type == "mcq" and q.mcq:
+                ans = user_answers.get(q.mcq.id)
+                mcq_answers_out[q.mcq.id] = {
+                    "chosen_option": ans.chosen_option if ans else None,
+                    "is_correct": ans.is_correct if ans else False,
+                    "correct_option": q.mcq.correct_option
+                }
+
+        # Load Code Submissions (get the most recent one per problem)
+        sub_res = await db.execute(
+            select(Submission)
+            .where(Submission.session_id == session_id)
+            .order_by(Submission.submitted_at.desc())
+        )
+        for sub in sub_res.scalars().all():
+            if sub.problem_id not in code_submissions_out:
+                code_submissions_out[sub.problem_id] = {
+                    "code": sub.code,
+                    "language": sub.language,
+                    "verdict": sub.verdict.value,
+                }
 
     return SessionResponse(
         id=session.id,
@@ -225,6 +262,8 @@ async def get_session(
         started_at=session.started_at,
         expires_at=session.expires_at,
         questions=questions_out,
+        mcq_answers=mcq_answers_out,
+        code_submissions=code_submissions_out,
     )
 
 
