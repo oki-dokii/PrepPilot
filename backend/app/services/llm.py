@@ -257,10 +257,12 @@ IMPORTANT: Use a NOVEL real-world scenario (drone networks, satellite telemetry,
 RULES:
 1. Return ONLY a valid JSON object. No markdown fences.
 2. ALL newlines inside string values MUST be escaped as \\n.
+3. Make sure all problem conditions are mathematically rigorous and unambiguous. Never leave key constraints open to interpretation.
+4. The statement MUST include a clear 'Input Format', 'Output Format', and AT LEAST 2 sample examples with step-by-step logical explanations.
 
 {{
   "title": "string",
-  "statement": "string (markdown with Example block: Input/Output/Explanation)",
+  "statement": "string (markdown with Input/Output format, and at least 2 Examples with step-by-step explanations)",
   "constraints": "string (markdown bullet list)",
   "sample_input": "string",
   "sample_output": "string",
@@ -334,6 +336,7 @@ Coding Problems to generate ({len(coding_items)} total):
 - Every question must be UNIQUE. Do NOT use classic textbook questions ("What is memoization?", "What is a pointer?", etc.)
 - For MCQs: test APPLIED understanding — scenario-based, trade-off analysis, subtle edge cases. Never simple definitions.
 - For Coding Problems: invent a NOVEL real-world scenario (autonomous vehicles, satellite telemetry, genomics pipeline, logistics routing, financial clearing, etc.). Do NOT use LeetCode problem names verbatim.
+- For Coding Problems: Make sure all problem conditions are mathematically rigorous and unambiguous. Never leave key constraints open to interpretation. The statement MUST include a clear 'Input Format', 'Output Format', and AT LEAST 2 sample examples with step-by-step logical explanations.
 - ALL string values must escape newlines as \\n. No raw multiline strings.
 - Return ONLY valid JSON. No markdown fences.
 
@@ -383,7 +386,7 @@ Return a single JSON object:
   "problems": [
     {{
       "title": "string",
-      "statement": "string (markdown, newlines as \\\\n)",
+      "statement": "string (markdown with Input/Output format, and at least 2 Examples with explanations, newlines as \\\\n)",
       "constraints": "string (bullet list, newlines as \\\\n)",
       "sample_input": "string",
       "sample_output": "string",
