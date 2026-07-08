@@ -66,7 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (e) {}
     localStorage.removeItem("pp_token");
     setToken(null);
     setUser(null);

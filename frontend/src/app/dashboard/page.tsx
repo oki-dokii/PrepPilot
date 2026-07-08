@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { sessionsApi } from "@/lib/api";
+import { sessionsApi, authApi } from "@/lib/api";
 import { LayoutWrapper, StampCard } from "@/components/LayoutWrapper";
 import { MasteryGraph, CANONICAL_NODES, DEFAULT_EDGES, resolveTopicToNodeId } from "@/components/MasteryGraph";
 import ChatSetup from "@/components/ChatSetup";
@@ -33,49 +33,37 @@ export default function DashboardPage() {
   const [showNewTest, setShowNewTest] = useState(false);
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [masteryData, setMasteryData] = useState<{topic: string, mastery_score: number}[]>([]);
   const [focusTopic, setFocusTopic] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    sessionsApi.list()
-      .then((res) => setSessions(res.data))
-      .catch((err) => console.error("Failed to load sessions:", err))
+    Promise.all([
+      sessionsApi.list(),
+      authApi.getMastery()
+    ])
+      .then(([sessionsRes, masteryRes]) => {
+        setSessions(sessionsRes.data);
+        setMasteryData(masteryRes.data);
+      })
+      .catch((err) => console.error("Failed to load dashboard data:", err))
       .finally(() => setLoadingSessions(false));
   }, [user]);
 
-  // ─── Dynamic mastery computation from real session history ─────────────────
+  // ─── Dynamic mastery computation from backend history ─────────────────
   const masteryNodes = useMemo(() => {
     // Start every node at 0
     const nodes = CANONICAL_NODES.map((n) => ({ ...n, mastery: 0 }));
     const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
 
-    // Accumulate scores per topic-node
-    const scores: Record<string, number[]> = {};
-
-    const submittedSessions = sessions.filter(
-      (s) => s.status === "submitted" && s.score !== null
-    );
-
-    submittedSessions.forEach((s) => {
-      const nodeId = resolveTopicToNodeId(s.topic);
-      if (!nodeId) return;
-      if (!scores[nodeId]) scores[nodeId] = [];
-      scores[nodeId].push(s.score! / 100);
+    masteryData.forEach((m) => {
+      if (nodeMap[m.topic]) {
+        nodeMap[m.topic].mastery = m.mastery_score;
+      }
     });
 
-    // Weighted average: recent tests count more (exponential recency weighting)
-    for (const [nodeId, scoreList] of Object.entries(scores)) {
-      if (!nodeMap[nodeId]) continue;
-      // Weight later entries higher
-      const weighted = scoreList.reduce((acc, score, i) => {
-        const weight = Math.pow(1.5, i); // more recent = higher index from sort above
-        return { sum: acc.sum + score * weight, totalW: acc.totalW + weight };
-      }, { sum: 0, totalW: 0 });
-      nodeMap[nodeId].mastery = Math.min(1.0, weighted.sum / weighted.totalW);
-    }
-
     return nodes;
-  }, [sessions]);
+  }, [masteryData]);
 
   // Nodes that have been tested and are weakest
   const testedNodes = useMemo(() =>

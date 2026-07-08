@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -10,8 +10,20 @@ from app.core.database import get_db
 from app.core.redis_client import cache_session, get_cached_session, invalidate_session
 from app.models.models import Session, Test, TestQuestion, Problem, MCQ, User, SessionStatus
 from app.routers.auth import get_current_user
-
 router = APIRouter()
+
+async def background_grade_session(session_id: str):
+    from app.services.grading import grade_session
+    from app.core.database import async_session_maker
+    async with async_session_maker() as db:
+        try:
+            await grade_session(session_id=session_id, db=db)
+            await db.commit()
+        except Exception as e:
+            from app.core.redis_client import set_grading_status
+            import logging
+            logging.getLogger(__name__).error(f"Grading failed for {session_id}: {e}")
+            await set_grading_status(session_id, "error")
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -270,6 +282,7 @@ async def get_session(
 @router.post("/{session_id}/submit")
 async def submit_session(
     session_id: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -287,13 +300,7 @@ async def submit_session(
     await db.flush()
     await invalidate_session(session_id)
 
-    # Grade synchronously for now — Chunk 9 moves this to an async worker
-    from app.services.grading import grade_session
-    try:
-        await grade_session(session_id=session_id, db=db)
-    except Exception as e:
-        # Grading failure should not block the user from seeing "submitted"
-        from app.core.redis_client import set_grading_status
-        await set_grading_status(session_id, "error")
+    # Grade asynchronously using BackgroundTasks
+    background_tasks.add_task(background_grade_session, session_id)
 
     return {"message": "Session submitted. Grading in progress.", "session_id": session_id}

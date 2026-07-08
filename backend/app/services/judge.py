@@ -18,6 +18,12 @@ LANGUAGE_MAP = {
     "cpp":        "c++",
 }
 
+def _normalize_output(s: str) -> str:
+    """Strips trailing/leading whitespace per line and ignores empty lines."""
+    if not s: return ""
+    lines = [line.strip() for line in s.splitlines()]
+    return "\n".join(line for line in lines if line)
+
 
 async def _run_code(
     code: str, language: str, test_input: str
@@ -95,8 +101,8 @@ async def run_against_hidden_tests(
             return Verdict.runtime_error, max_runtime, passed, total, stderr.strip()
 
         # Wrong answer
-        actual   = stdout.strip()
-        expected = tc.expected_output.strip()
+        actual   = _normalize_output(stdout)
+        expected = _normalize_output(tc.expected_output)
         if actual != expected:
             # Only show diff for the visible (sample) test case to avoid spoilers
             if not tc.is_hidden:

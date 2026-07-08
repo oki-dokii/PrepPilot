@@ -4,6 +4,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export const api = axios.create({
   baseURL: API_BASE,
+  withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -32,6 +33,10 @@ export const authApi = {
   },
 
   me: () => api.get("/api/auth/me"),
+  
+  getMastery: () => api.get("/api/auth/mastery"),
+
+  logout: () => api.post("/api/auth/logout"),
 
   updateProfile: (data: { full_name?: string; target_role?: string; target_company?: string; exam_date?: string }) =>
     api.put("/api/auth/profile", data),

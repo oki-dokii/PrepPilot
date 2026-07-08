@@ -23,13 +23,14 @@ async def grade_session(session_id: str, db: AsyncSession) -> Report:
     """
     await set_grading_status(session_id, "processing")
 
-    # Load session + submissions + MCQ answers
+    # Load session + submissions + MCQ answers + test
     result = await db.execute(
         select(Session)
         .where(Session.id == session_id)
         .options(
             selectinload(Session.submissions).selectinload(Submission.problem),
             selectinload(Session.mcq_answers).selectinload(MCQAnswer.mcq),
+            selectinload(Session.test),
         )
     )
     session = result.scalar_one_or_none()
@@ -75,19 +76,21 @@ async def grade_session(session_id: str, db: AsyncSession) -> Report:
             })
         elif tq.question_type == "coding" and tq.problem_id:
             best = best_by_problem.get(tq.problem_id)
-            questions_feedback.append({
+            is_correct = best.verdict == Verdict.accepted if best else False
+            
+            q_info = {
                 "question_type": "coding",
                 "title": best.problem.title if best and best.problem else "Coding problem",
                 "verdict": best.verdict.value if best else "pending",
-                "is_correct": best.verdict == Verdict.accepted if best else False,
-                "explanation": (
-                    "Your solution passed all hidden test cases. Well done!"
-                    if best and best.verdict == Verdict.accepted
-                    else "Your solution did not pass all hidden tests. Review edge cases and time complexity."
-                ),
+                "is_correct": is_correct,
+                "explanation": "Your solution passed all hidden test cases. Well done!" if is_correct else "Your solution did not pass all hidden tests. Review edge cases and time complexity.",
                 "approach": "Review the optimal approach for this problem type in your study plan.",
                 "complexity": "Check time and space complexity requirements.",
-            })
+            }
+            if not is_correct and best:
+                q_info["submitted_code"] = best.code
+                q_info["expected_solution"] = best.problem.official_solution if best.problem.official_solution else "N/A"
+            questions_feedback.append(q_info)
 
     # ── Weak topics ───────────────────────────────────────────────────────────
     weak_topics: list[str] = []
@@ -136,6 +139,44 @@ async def grade_session(session_id: str, db: AsyncSession) -> Report:
             "Focus on time complexity — aim for O(n log n) or better.",
             "Practice edge cases: empty input, single element, max constraints.",
         ]
+
+    # ── Update Mastery Nodes (Server-Side) ───────────────────────────────────
+    TOPIC_ALIASES = {
+        "arrays": "arr", "array": "arr", "two pointers": "arr",
+        "prefix sum": "ps", "prefix": "ps",
+        "sliding window": "sw",
+        "binary search": "bs", "search": "bs",
+        "greedy": "gr",
+        "dynamic programming": "dp", "dp": "dp", "interval dp": "dp", "knapsack": "dp", "memoization": "dp",
+        "union find": "uf", "union-find": "uf", "disjoint set": "uf",
+        "graphs": "gph", "graph": "gph", "bfs": "gph", "dfs": "gph", "trees": "gph", "tree": "gph", "traversal": "gph",
+        "trie": "trie", "tries": "trie",
+        "strings": "str", "string": "str", "anagram": "str", "palindrome": "str",
+        "hash tables": "ht", "hash table": "ht", "hashing": "ht", "hashmap": "ht", "hash map": "ht",
+        "stack": "stk", "queue": "stk", "stacks": "stk", "queues": "stk", "monotonic stack": "stk",
+    }
+    def resolve_topic(topic: str) -> str | None:
+        key = topic.lower().strip()
+        if key in TOPIC_ALIASES: return TOPIC_ALIASES[key]
+        for alias, n_id in TOPIC_ALIASES.items():
+            if key in alias or alias in key: return n_id
+        return None
+
+    if session.test and session.test.spec.get("topic"):
+        from app.models.models import MasteryNode
+        node_id = resolve_topic(session.test.spec.get("topic", ""))
+        if node_id:
+            score_pct = total_score / max(mcq_total + coding_total, 1)
+            result = await db.execute(select(MasteryNode).where(MasteryNode.user_id == session.user_id, MasteryNode.topic == node_id))
+            node = result.scalar_one_or_none()
+            if not node:
+                node = MasteryNode(user_id=session.user_id, topic=node_id, mastery_score=score_pct, last_seen_at=datetime.now(timezone.utc))
+                db.add(node)
+            else:
+                # Exponential Moving Average for mastery updates
+                node.mastery_score = (node.mastery_score * 0.6) + (score_pct * 0.4)
+                node.last_seen_at = datetime.now(timezone.utc)
+            await db.flush()
 
     # ── Write report ──────────────────────────────────────────────────────────
     report = Report(

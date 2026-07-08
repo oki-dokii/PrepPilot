@@ -49,11 +49,23 @@ async def setup_test(
     import google.generativeai as genai
     genai.configure(api_key=settings.GEMINI_API_KEY)
 
-    system_instruction = """You are an expert technical interview coordinator for PrepPilot.
+    from sqlalchemy import select
+    from app.models.models import MasteryNode
+    
+    res = await db.execute(select(MasteryNode).where(MasteryNode.user_id == current_user.id))
+    nodes = res.scalars().all()
+    nodes.sort(key=lambda n: n.mastery_score)
+    weak_topics = [n.topic for n in nodes if n.mastery_score < 0.8][:3]
+    weak_topics_str = ", ".join(weak_topics) if weak_topics else "None identified yet"
+
+    system_instruction = f"""You are an expert technical interview coordinator for PrepPilot.
 Your goal is to understand the user's interview situation (Target Company, Role, Seniority, Weak Topics) through a concise conversation.
 Ask 1 or 2 targeted questions at a time to gather this info.
 Once you have enough information, decide the EXACT blueprint of the test based on what that company typically asks.
 For example, Google L4 might have 2 hard algorithmic coding questions and 0 MCQs. A backend infra role might have MCQs on OS/CN and a coding problem on Graphs.
+
+IMPORTANT BACKGROUND: The system has automatically identified the user's weakest topics based on past performance: {weak_topics_str}.
+You SHOULD suggest incorporating these weak topics into the generated test blueprint to help them improve, but always confirm with the user.
 
 When you need more information, reply with a normal conversational response.
 When you are ready to generate the test, reply ONLY with a JSON object in this exact format (do NOT include markdown formatting or backticks around the JSON):

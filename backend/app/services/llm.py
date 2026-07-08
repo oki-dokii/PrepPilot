@@ -264,6 +264,7 @@ RULES:
   "constraints": "string (markdown bullet list)",
   "sample_input": "string",
   "sample_output": "string",
+  "official_solution": "string (python3 code that correctly solves the problem)",
   "difficulty": "{difficulty}",
   "topic_tags": ["string"],
   "test_cases": [
@@ -386,6 +387,7 @@ Return a single JSON object:
       "constraints": "string (bullet list, newlines as \\\\n)",
       "sample_input": "string",
       "sample_output": "string",
+      "official_solution": "string (python3 code that correctly solves the problem, newlines as \\\\n)",
       "difficulty": "easy|medium|hard",
       "topic_tags": ["string"],
       "test_cases": [
@@ -493,12 +495,17 @@ async def generate_feedback_with_gemini(session_summary: dict) -> dict:
 Session data:
 {json.dumps(session_summary, indent=2)}
 
-Return a JSON object (no markdown fences):
+Analyze the candidate's performance. For any incorrect coding questions, review their `submitted_code` and the `expected_solution` to diagnose exactly why they failed (e.g., O(n²) instead of O(n), missed an edge case, syntax error).
+
+Return a JSON object (no markdown fences) matching this exact format:
 {{
   "overall_feedback": "3-4 sentences of honest, encouraging, specific feedback",
   "study_plan": ["5 specific, actionable study items ordered by priority"],
   "question_insights": [
-    {{"title": "problem title", "key_insight": "the most important thing to learn from this problem"}}
+    {{
+      "title": "problem title",
+      "key_insight": "A specific, targeted critique. For coding problems they got wrong, explain exactly what was wrong with their code."
+    }}
   ]
 }}"""
         raw = await _call_gemini(prompt)

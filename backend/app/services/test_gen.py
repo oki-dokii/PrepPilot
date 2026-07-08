@@ -79,36 +79,82 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
             order += 1
 
         elif q_type == "coding":
-            # Try next from batch, fallback to stub
+            from app.services.judge import run_against_hidden_tests
+            from app.models.models import Verdict
+            from datetime import datetime, timezone
+
             data = next(problem_pool, None)
-            if not data:
+            valid_problem_created = False
+            problem = None
+
+            if data:
+                try:
+                    async with db.begin_nested():
+                        problem = Problem(
+                            title=data["title"],
+                            topic_tags=data.get("topic_tags", [q_topic.lower()]),
+                            difficulty=_coerce_difficulty(data.get("difficulty", q_diff)),
+                            statement=data["statement"],
+                            constraints=data.get("constraints", ""),
+                            sample_input=data.get("sample_input", ""),
+                            sample_output=data.get("sample_output", ""),
+                            official_solution=data.get("official_solution", ""),
+                            time_limit_ms=2000,
+                            memory_limit_mb=256,
+                        )
+                        db.add(problem)
+                        await db.flush()
+
+                        for tc in data.get("test_cases", []):
+                            db.add(TestCase(
+                                problem_id=problem.id,
+                                input=tc["input"],
+                                expected_output=tc["expected"],
+                                is_hidden=tc.get("is_hidden", True),
+                                category=tc.get("category", "random"),
+                            ))
+                        await db.flush()
+
+                        if problem.official_solution:
+                            verdict, _, _, _, err = await run_against_hidden_tests(problem.id, problem.official_solution, "python3", db)
+                            if verdict != Verdict.accepted:
+                                logger.warning(f"Validation failed for '{problem.title}': {verdict} - {err}")
+                                raise ValueError("Validation failed")
+                            problem.validated_at = datetime.now(timezone.utc)
+                            logger.info(f"Problem '{problem.title}' passed self-validation.")
+
+                        valid_problem_created = True
+                except Exception as e:
+                    logger.warning(f"Discarding generated problem due to failure: {e}")
+                    valid_problem_created = False
+
+            if not valid_problem_created:
                 data = _get_stub_problem(q_topic)
+                problem = Problem(
+                    title=data["title"],
+                    topic_tags=data.get("topic_tags", [q_topic.lower()]),
+                    difficulty=_coerce_difficulty(data.get("difficulty", q_diff)),
+                    statement=data["statement"],
+                    constraints=data.get("constraints", ""),
+                    sample_input=data.get("sample_input", ""),
+                    sample_output=data.get("sample_output", ""),
+                    official_solution=data.get("official_solution", ""),
+                    time_limit_ms=2000,
+                    memory_limit_mb=256,
+                    validated_at=datetime.now(timezone.utc)
+                )
+                db.add(problem)
+                await db.flush()
 
-            problem = Problem(
-                title=data["title"],
-                topic_tags=data.get("topic_tags", [q_topic.lower()]),
-                difficulty=_coerce_difficulty(data.get("difficulty", q_diff)),
-                statement=data["statement"],
-                constraints=data.get("constraints", ""),
-                sample_input=data.get("sample_input", ""),
-                sample_output=data.get("sample_output", ""),
-                time_limit_ms=2000,
-                memory_limit_mb=256,
-            )
-            db.add(problem)
-            await db.flush()
-
-            for tc in data.get("test_cases", []):
-                db.add(TestCase(
-                    problem_id=problem.id,
-                    input=tc["input"],
-                    expected_output=tc["expected"],
-                    is_hidden=tc.get("is_hidden", True),
-                    category=tc.get("category", "random"),
-                ))
-
-            await db.flush()
-            await db.refresh(problem)
+                for tc in data.get("test_cases", []):
+                    db.add(TestCase(
+                        problem_id=problem.id,
+                        input=tc["input"],
+                        expected_output=tc["expected"],
+                        is_hidden=tc.get("is_hidden", True),
+                        category=tc.get("category", "random"),
+                    ))
+                await db.flush()
 
             tq = TestQuestion(test_id=test.id, problem_id=problem.id, order=order, question_type="coding")
             db.add(tq)
