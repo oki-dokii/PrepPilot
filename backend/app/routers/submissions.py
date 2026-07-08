@@ -3,12 +3,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.models.models import Submission, MCQAnswer, Session, SessionStatus, User, Verdict
 from app.routers.auth import get_current_user
 
 router = APIRouter()
+
+
+def _assert_session_open(session: Session) -> None:
+    """
+    Raises 400 if the session is not active, or if the wall-clock timer
+    has already expired (even if the status hasn't been lazily updated yet).
+    This is called in every submission endpoint so that POSTing past the
+    deadline is rejected without requiring a prior GET /sessions/{id}.
+    """
+    if not session or session.status != SessionStatus.active:
+        raise HTTPException(status_code=400, detail="Session not active")
+    if session.expires_at and datetime.now(timezone.utc) > session.expires_at:
+        raise HTTPException(status_code=400, detail="Session time limit exceeded")
 
 
 class CodeSubmit(BaseModel):
@@ -37,13 +51,12 @@ async def submit_code(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Validate session
+    # Validate session — also checks wall-clock expiry directly
     result = await db.execute(
         select(Session).where(Session.id == data.session_id, Session.user_id == current_user.id)
     )
     session = result.scalar_one_or_none()
-    if not session or session.status != SessionStatus.active:
-        raise HTTPException(status_code=400, detail="Session not active")
+    _assert_session_open(session)
 
     from app.services.judge import run_against_hidden_tests
 
@@ -85,17 +98,28 @@ async def submit_mcq(
     db: AsyncSession = Depends(get_db),
 ):
     from app.models.models import MCQ
+    # Validate session — also checks wall-clock expiry directly
     result = await db.execute(
         select(Session).where(Session.id == data.session_id, Session.user_id == current_user.id)
     )
     session = result.scalar_one_or_none()
-    if not session or session.status != SessionStatus.active:
-        raise HTTPException(status_code=400, detail="Session not active")
+    _assert_session_open(session)
 
     mcq_result = await db.execute(select(MCQ).where(MCQ.id == data.mcq_id))
     mcq = mcq_result.scalar_one_or_none()
     if not mcq:
         raise HTTPException(status_code=404, detail="MCQ not found")
+
+    # Check for duplicate answer (idempotency — don't double-record)
+    existing = await db.execute(
+        select(MCQAnswer).where(
+            MCQAnswer.session_id == data.session_id,
+            MCQAnswer.mcq_id == data.mcq_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        # Already answered — silently accept but don't overwrite
+        return {"recorded": True}
 
     is_correct = data.chosen_option.upper() == mcq.correct_option.upper()
     answer = MCQAnswer(
@@ -107,4 +131,6 @@ async def submit_mcq(
     db.add(answer)
     await db.flush()
 
-    return {"is_correct": is_correct, "correct_option": mcq.correct_option}
+    # IMPORTANT: Never return is_correct or correct_option during a live test.
+    # Correctness is revealed only via the report after the session is submitted.
+    return {"recorded": True}

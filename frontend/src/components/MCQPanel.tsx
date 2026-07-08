@@ -29,11 +29,12 @@ export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabl
     try {
       const { submissionsApi } = await import("@/lib/api");
       const res = await submissionsApi.submitMcq(sessionId, mcqId, key);
-      setResult(res.data);
+      if (res.data.correct_option !== undefined) {
+        setResult(res.data);
+      }
       onAnswer(mcqId);
     } catch {
-      setResult({ is_correct: false, correct_option: "" });
-      onAnswer(mcqId);
+      setSelected(null);
     } finally {
       setSubmitting(false);
     }
