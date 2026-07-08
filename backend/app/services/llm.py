@@ -214,7 +214,7 @@ async def _call_gemini(prompt: str) -> str:
     import google.generativeai as genai
     genai.configure(api_key=settings.GEMINI_API_KEY)
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-flash-lite-latest",
         generation_config={
             "temperature": 0.7,
             "response_mime_type": "application/json",
@@ -401,7 +401,7 @@ Return a single JSON object:
 }}"""
 
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-flash-lite-latest",
         generation_config={"temperature": 0.85, "response_mime_type": "application/json"},
     )
     response = model.generate_content(prompt)

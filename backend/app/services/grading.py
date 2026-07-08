@@ -105,24 +105,37 @@ async def grade_session(session_id: str, db: AsyncSession) -> Report:
 
     # ── Overall feedback (stub — Chunk 9 replaces with Claude) ────────────────
     pct = round((total_score / max(mcq_total + coding_total, 1)) * 100)
-    overall_feedback = (
-        f"You scored {total_score}/{mcq_total + coding_total} ({pct}%). "
-        + ("Strong performance overall!" if pct >= 70
-           else "Keep practicing — focus on the weak areas listed below.")
-        + " Full AI analysis will appear here once the grading service is running with an Anthropic API key."
-    )
-
-    study_plan = [f"Review: {t}" for t in weak_topics[:5]] or [
-        "Keep solving problems in your chosen topic.",
-        "Focus on time complexity — aim for O(n log n) or better.",
-        "Practice edge cases: empty input, single element, max constraints.",
-    ]
+    
+    from app.services.llm import generate_feedback_with_gemini
+    from app.core.config import settings
 
     summary = {
         "questions": questions_feedback,
-        "overall_feedback": overall_feedback,
-        "study_plan": study_plan,
+        "overall_feedback": "",
+        "study_plan": [],
     }
+
+    if settings.GEMINI_API_KEY:
+        try:
+            ai_feedback = await generate_feedback_with_gemini(summary)
+            if ai_feedback:
+                summary["overall_feedback"] = ai_feedback.get("overall_feedback", "")
+                summary["study_plan"] = ai_feedback.get("study_plan", [])
+        except Exception as e:
+            pass
+
+    if not summary["overall_feedback"]:
+        summary["overall_feedback"] = (
+            f"You scored {total_score}/{mcq_total + coding_total} ({pct}%). "
+            + ("Strong performance overall!" if pct >= 70
+               else "Keep practicing — focus on the weak areas listed below.")
+            + " Full AI analysis is currently unavailable."
+        )
+        summary["study_plan"] = [f"Review: {t}" for t in weak_topics[:5]] or [
+            "Keep solving problems in your chosen topic.",
+            "Focus on time complexity — aim for O(n log n) or better.",
+            "Practice edge cases: empty input, single element, max constraints.",
+        ]
 
     # ── Write report ──────────────────────────────────────────────────────────
     report = Report(

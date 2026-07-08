@@ -219,6 +219,13 @@ export default function ReportPage() {
           </div>
           <p className="text-[12px] text-ink/60">Filter and search static topic banks to drill down on individual nodes.</p>
         </Link>
+        <Link href={`/test/${sessionId}`} className="stamp-card p-4 hover:border-blueprint block transition-colors group">
+          <div className="stamp-id mb-1">ACTION · 03</div>
+          <div className="font-display text-[15px] font-medium text-ink mb-2 group-hover:text-blueprint transition-colors flex items-center gap-1.5">
+            Review your test run <ArrowRight size={14} />
+          </div>
+          <p className="text-[12px] text-ink/60">Go back and view your answers and submitted code for this session.</p>
+        </Link>
       </div>
     </LayoutWrapper>
   );

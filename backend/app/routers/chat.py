@@ -73,7 +73,7 @@ CRITICAL RULES FOR THE TOPIC FIELD:
 """
 
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-flash-lite-latest",
         system_instruction=system_instruction
     )
 

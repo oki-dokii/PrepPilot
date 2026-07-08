@@ -144,12 +144,19 @@ export function CodeEditor({ problemId, sessionId, disabled, onSubmit }: CodeEdi
             <Loader2 size={12} className="animate-spin text-chalk/50" />
           )}
           <button
+            onClick={handleSubmit}
+            disabled={submitting || disabled}
+            className="h-7 px-4 border border-chalk/20 text-chalk text-[11px] font-mono hover:bg-chalk/5 disabled:opacity-50 transition-colors"
+          >
+            {submitting ? "RUNNING…" : "RUN"}
+          </button>
+          <button
             id="submit-code-btn"
             onClick={handleSubmit}
             disabled={submitting || disabled}
-            className="stamp-id text-chalk/70 hover:text-chalk disabled:opacity-30 cursor-pointer transition-colors"
+            className="h-7 px-4 bg-chalk text-graphite text-[11px] font-mono hover:bg-chalk/90 disabled:opacity-50 transition-colors"
           >
-            {submitting ? "JUDGING…" : "SUBMIT"}
+            {submitting ? "SUBMITTING…" : "SUBMIT"}
           </button>
         </div>
       </div>

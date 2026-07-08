@@ -118,8 +118,8 @@ export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabl
         })}
       </div>
 
-      {/* Result feedback (only shown after answering) */}
-      {result && (
+      {/* Result feedback (only shown after answering and if session is disabled/submitted) */}
+      {result && disabled && (
         <div
           className={
             "mt-4 flex items-center gap-2 stamp-id p-3 " +
