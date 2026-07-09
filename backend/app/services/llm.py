@@ -305,7 +305,7 @@ Requirements:
 - Focus on: time complexity, algorithm design, data structure selection, edge cases"""
 
     raw = await _call_llm(prompt)
-    return json.loads(raw)
+    return _safe_parse_json(raw)
 
 
 async def _generate_problem_with_gemini(topic: str, difficulty: str, style: str | None) -> dict:
@@ -362,7 +362,7 @@ TEST CASE REQUIREMENTS — MUST have AT LEAST 12 cases covering ALL categories:
 
 
     raw = await _call_llm(prompt)
-    return json.loads(raw)
+    return _safe_parse_json(raw)
 
 
 async def generate_full_test_with_gemini(blueprint: list, style: str | None = None) -> dict:
@@ -717,7 +717,7 @@ Return a JSON object (no markdown fences) matching this exact format:
                 
         text = re.sub(r',\s*}', '}', text)
         text = re.sub(r',\s*]', ']', text)
-        return json.loads(text)
+        return _safe_parse_json(text)
     except Exception as e:
         logger.warning(f"Gemini feedback failed: {e}")
         return {}
