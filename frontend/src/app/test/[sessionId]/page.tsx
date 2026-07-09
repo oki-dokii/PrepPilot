@@ -371,14 +371,26 @@ export default function TestPage() {
                     </ul>
                   </div>
 
-                  {activeQ.coding.sample_input && (
-                    <div className="border border-chalk/15 p-4">
-                      <div className="stamp-id text-chalk/50 mb-2">SAMPLE · INPUT</div>
-                      <pre className="font-mono text-[12.5px] text-chalk/85 whitespace-pre overflow-x-auto">
-                        {activeQ.coding.sample_input.replace(/\\n/g, '\n')}
-                      </pre>
-                    </div>
-                  )}
+                  {activeQ.coding.sample_input && (() => {
+                    let displayInput = activeQ.coding.sample_input.replace(/\\n/g, '\n');
+                    // If it's a JSON dict, pretty-print it for readability
+                    try {
+                      const parsed = JSON.parse(displayInput);
+                      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                        displayInput = Object.entries(parsed)
+                          .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+                          .join('\n');
+                      }
+                    } catch {}
+                    return (
+                      <div className="border border-chalk/15 p-4">
+                        <div className="stamp-id text-chalk/50 mb-2">SAMPLE · INPUT</div>
+                        <pre className="font-mono text-[12.5px] text-chalk/85 whitespace-pre overflow-x-auto">
+                          {displayInput}
+                        </pre>
+                      </div>
+                    );
+                  })()}
 
                   {activeQ.coding.sample_output && (
                     <div className="border border-chalk/15 p-4">

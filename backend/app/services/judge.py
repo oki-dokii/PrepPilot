@@ -20,10 +20,41 @@ LANGUAGE_MAP = {
 }
 
 def _normalize_output(s: str) -> str:
-    """Strips trailing/leading whitespace per line and ignores empty lines."""
-    if not s: return ""
-    lines = [line.strip() for line in s.splitlines()]
+    """Strips trailing/leading whitespace per line, collapses \r\n, ignores trailing empty lines."""
+    if not s:
+        return ""
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [line.strip() for line in s.strip().splitlines()]
     return "\n".join(line for line in lines if line)
+
+
+def _outputs_match(actual: str, expected: str) -> bool:
+    """
+    Compare normalized outputs. Also tries float-tolerant comparison:
+    if both sides are whitespace-separated numbers, compare with 1e-6 tolerance.
+    """
+    a = _normalize_output(actual)
+    e = _normalize_output(expected)
+    if a == e:
+        return True
+    # Try float-tolerant comparison on each line
+    a_lines = a.splitlines()
+    e_lines = e.splitlines()
+    if len(a_lines) != len(e_lines):
+        return False
+    try:
+        for al, el in zip(a_lines, e_lines):
+            a_toks = al.split()
+            e_toks = el.split()
+            if len(a_toks) != len(e_toks):
+                return False
+            for at, et in zip(a_toks, e_toks):
+                if at != et:
+                    if abs(float(at) - float(et)) > 1e-6:
+                        return False
+        return True
+    except (ValueError, TypeError):
+        return False
 
 def _is_compile_error(language: str, stderr: str) -> bool:
     if not stderr:
@@ -256,7 +287,9 @@ async def run_against_hidden_tests(
 
     for i, tc in enumerate(test_cases):
         test_input_str = tc.input
-        if not is_validation and problem and problem.problem_style == "standard" and input_schema:
+        # Always flatten JSON→stdin tokens for standard style (both during validation and submission).
+        # LeetCode style: driver_code handles its own deserialization, no flattening needed.
+        if problem and problem.problem_style == "standard" and input_schema:
             test_input_str = _flatten_input_for_standard(tc.input, input_schema)
             
         stdout, stderr, ran, runtime = await _run_code(code, language, test_input_str)
@@ -281,7 +314,7 @@ async def run_against_hidden_tests(
         # Wrong answer
         actual   = _normalize_output(stdout)
         expected = _normalize_output(tc.expected_output)
-        if actual != expected:
+        if not _outputs_match(stdout, tc.expected_output):
             # Only show diff for the visible (sample) test case to avoid spoilers
             if not tc.is_hidden:
                 diff = f"Expected:\n{expected}\n\nGot:\n{actual or '(no output)'}"

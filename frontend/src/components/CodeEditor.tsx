@@ -101,8 +101,17 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
   const [language, setLanguage] = useState(initialData?.language || "python3");
   
   // Use starterCode if provided and no initial code exists, otherwise fallback to STARTERS
-  const defaultCode = starterCode?.[language] || STARTERS[language || "python3"];
+  const defaultCode = (starterCode?.[language]) || STARTERS[language || "python3"];
   const [code, setCode] = useState(initialData?.code || defaultCode);
+  const getDefaultCode = (lang: string) => (starterCode?.[lang]) || STARTERS[lang] || "";
+  const handleReset = () => {
+    const starter = getDefaultCode(language);
+    setCode(starter);
+    setResult(null);
+    setApiError("");
+    onChange?.(starter, language);
+  };
+  const isModified = code !== getDefaultCode(language);
   
   const [submitType, setSubmitType] = useState<"run" | "submit" | null>(null);
   const [result, setResult] = useState<SubmissionResult | null>(
@@ -200,6 +209,16 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
               <span className="text-rust/80 bg-rust/10 px-1.5 rounded-sm">STDIN / STDOUT</span>
             )}
           </span>
+          {/* Reset button */}
+          {isModified && (
+            <button
+              onClick={handleReset}
+              title="Reset to starter code"
+              className="stamp-id text-foreground/40 hover:text-foreground/80 border border-transparent hover:border-border px-2 py-0.5 ml-1 transition-colors cursor-pointer text-[10px]"
+            >
+              ↺ RESET
+            </button>
+          )}
         </div>
 
         {/* Custom Input Toggle */}
