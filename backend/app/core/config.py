@@ -28,10 +28,13 @@ class Settings(BaseSettings):
     # Groq
     GROQ_API_KEY: str = ""
 
-    # Judge0
+    # Judge0 (Legacy/Fallback)
     JUDGE0_URL: str = "https://judge0-ce.p.rapidapi.com"
     JUDGE0_API_KEY: str = ""
     JUDGE0_HOST: str = "judge0-ce.p.rapidapi.com"
+    
+    # Piston (Primary execution engine)
+    PISTON_URL: str = "https://emkc.org/api/v2/piston/execute"
 
     class Config:
         env_file = ".env"

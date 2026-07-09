@@ -4,19 +4,22 @@ Distinguishes compile errors from runtime errors and wrong answers.
 """
 import httpx
 import time
+import logging
 from typing import Tuple, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.models import TestCase, Verdict
+from app.core.config import settings
 
-PISTON_URL = "https://emkc.org/api/v1/piston/execute"
+logger = logging.getLogger(__name__)
 
-LANGUAGE_MAP = {
-    "python3":    "python3",
-    "javascript": "node",
-    "cpp":        "c++",
-    "java":       "java",
+# Piston v2 requires explicit versions
+PISTON_VERSIONS = {
+    "python3":    "3.10.0",
+    "javascript": "18.15.0",
+    "cpp":        "10.2.0",
+    "java":       "15.0.2",
 }
 
 def _normalize_output(s: str) -> str:
@@ -85,35 +88,37 @@ async def _run_code(
     code: str, language: str, test_input: str
 ) -> Tuple[str, str, bool, int]:
     """
-    Runs code via Piston v1.
+    Runs code via Piston v2.
     Returns: (stdout, stderr, ran, runtime_ms)
     `ran` is False when compilation failed (C++/Java) or syntax error prevented execution.
     """
-    piston_lang = LANGUAGE_MAP.get(language, "python3")
-    payload = {
-        "language": piston_lang,
-        "source":   code,
-        "stdin":    test_input,
-    }
-
     start = time.time()
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(PISTON_URL, json=payload, timeout=15.0)
-        runtime_ms = int((time.time() - start) * 1000)
-
-        if resp.status_code != 200:
-            return "", f"Code execution service returned {resp.status_code}. Try again in a moment.", False, runtime_ms
-
-        data = resp.json()
-        stdout = data.get("stdout", "") or ""
-        stderr = data.get("stderr", "") or ""
-        ran    = data.get("ran", True)
-        return stdout, stderr, ran, runtime_ms
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.post(
+                settings.PISTON_URL,
+                json={
+                    "language": language,
+                    "version": PISTON_VERSIONS.get(language, "latest"),
+                    "files": [{"content": code}],
+                    "stdin": test_input,
+                },
+            )
+            res.raise_for_status()
+            data = res.json()
+            
+            run_result = data.get("run", {})
+            stdout = run_result.get("stdout", "")
+            stderr = run_result.get("stderr", "")
+            exit_code = run_result.get("code", 0)
+            
+            runtime_ms = int((time.time() - start) * 1000)
+            return stdout, stderr, (exit_code == 0), runtime_ms
 
     except httpx.TimeoutException:
         return "", "Time Limit Exceeded", True, 10000
     except Exception as e:
+        logger.error(f"Execution Error: {e}")
         return "", f"Execution Error: {str(e)}", True, 0
 
 
