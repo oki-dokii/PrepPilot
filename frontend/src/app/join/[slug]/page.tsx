@@ -37,6 +37,7 @@ export default function JoinEventPage() {
   const [isJoining, setIsJoining] = useState(false);
   const [timeLeft, setTimeLeft] = useState<{h: number, m: number, s: number} | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [joinError, setJoinError] = useState("");
 
   const fetchEvent = async () => {
     try {
@@ -103,11 +104,12 @@ export default function JoinEventPage() {
   const handleJoin = async () => {
     if (!user) { router.push("/login"); return; }
     setIsJoining(true);
+    setJoinError("");
     try {
       const res = await eventsApi.join(slug);
       router.push(`/test/${res.data.session_id}`);
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to join event");
+      setJoinError(err.response?.data?.detail || "Failed to join event. Please try again.");
       setIsJoining(false);
     }
   };
@@ -217,6 +219,14 @@ export default function JoinEventPage() {
                 Waiting to Start... <Clock size={16} />
               </button>
             )}
+          </div>
+        )}
+
+        {joinError && (
+          <div className="flex justify-center">
+            <p className="text-rust text-sm font-mono border border-rust/30 bg-rust/5 px-4 py-2">
+              ⚠ {joinError}
+            </p>
           </div>
         )}
 

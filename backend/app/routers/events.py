@@ -137,7 +137,7 @@ async def list_events(
             e.status = ScheduledEventStatus.open
             db.add(e)
 
-    await db.flush()
+    await db.commit()
 
     return [
         EventResponse(
