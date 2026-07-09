@@ -16,6 +16,8 @@ interface SubmissionResult {
   total_hidden_count: number;
   error_output?: string | null;
   stdout?: string | null;
+  official_solution?: string | null;
+  topic_tags?: string[] | null;
 }
 
 interface CodeEditorProps {
@@ -125,6 +127,7 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
   const [apiError, setApiError] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [customInput, setCustomInput] = useState("");
+  const [showSolution, setShowSolution] = useState(false);
   const [consoleHeight, setConsoleHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
   const editorRef = useRef<any>(null);
@@ -166,6 +169,7 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
       const isCustomRun = type === "run" && showCustomInput && customInput.trim() !== "";
       const res = await submissionsApi.submitCode(sessionId, problemId, code, language, type === "run", isCustomRun ? customInput : undefined);
       setResult(res.data);
+      setShowSolution(false); // reset solution reveal on new submission
       if (type === "submit") {
         onSubmit?.(res.data);
       }
@@ -385,21 +389,57 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
                     : <AlertTriangle size={14} />}
                   {verdict.label}
                 </div>
-                {result.total_hidden_count > 0 && (
-                  <div className="flex items-center gap-4 text-foreground/70 text-[12px]">
-                    <span>
-                      Passed {result.passed_hidden_count}/{result.total_hidden_count}
-                    </span>
-                    {result.passed_hidden_count < result.total_hidden_count && (
-                      <span className="text-rust">
-                        Failed: Test {result.passed_hidden_count + 1}
-                      </span>
-                    )}
-                    {result.runtime_ms != null && (
-                      <span>Time: {(result.runtime_ms / 1000).toFixed(2)}s</span>
-                    )}
-                  </div>
-                )}
+                {result.total_hidden_count > 0 && (() => {
+                  const p = result.passed_hidden_count;
+                  const t = result.total_hidden_count;
+                  const pct = Math.round((p / t) * 100);
+                  // Estimate test category from test index (2 sample, 3 boundary, 2 structural, 2 adversarial, 1 perf, 2 random)
+                  const failIdx = p; // 0-indexed failed test
+                  const categories = [
+                    ...Array(2).fill('sample'),
+                    ...Array(3).fill('boundary'),
+                    ...Array(3).fill('structural'),
+                    ...Array(2).fill('adversarial'),
+                    ...Array(1).fill('performance'),
+                    ...Array(10).fill('random'),
+                  ];
+                  const failCategory = categories[Math.min(failIdx, categories.length - 1)];
+                  return (
+                    <div className="mt-1.5 space-y-1.5">
+                      {/* Segmented bar */}
+                      <div className="flex gap-[2px] h-[5px] rounded-full overflow-hidden">
+                        {Array.from({ length: t }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="flex-1 rounded-full"
+                            style={{
+                              background: i < p
+                                ? 'var(--mastery)'
+                                : i === p
+                                ? 'var(--rust)'
+                                : 'rgba(236,234,228,0.12)'
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] font-mono">
+                        <span style={{ color: 'rgba(236,234,228,0.55)' }}>
+                          {p}/{t} passed
+                          {p < t && (
+                            <span style={{ color: 'var(--rust)', marginLeft: '0.5rem' }}>
+                              · Failed: #{p + 1} ({failCategory})
+                            </span>
+                          )}
+                        </span>
+                        {result.runtime_ms != null && (
+                          <span style={{ color: 'rgba(236,234,228,0.4)' }}>
+                            {(result.runtime_ms / 1000).toFixed(2)}s
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {result.total_hidden_count === 0 && result.runtime_ms != null && (
                   <div className="text-foreground/70 text-[12px]">
                     Time: {(result.runtime_ms / 1000).toFixed(2)}s
@@ -419,6 +459,29 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
                 >
                   {result.error_output}
                 </pre>
+              )}
+
+              {/* ── Solution reveal (Accepted only) ── */}
+              {result.verdict === "accepted" && result.official_solution && (
+                <div className="mt-3 border border-foreground/10">
+                  <button
+                    onClick={() => setShowSolution(s => !s)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-foreground/60 hover:text-foreground/90 hover:bg-foreground/5 transition-colors cursor-pointer"
+                  >
+                    <span className="stamp-id text-[10px]">{showSolution ? '▾' : '▸'} REFERENCE SOLUTION</span>
+                    <span className="stamp-id text-[9px] text-foreground/40">{result.topic_tags?.join(' · ')}</span>
+                  </button>
+                  {showSolution && (
+                    <div className="border-t border-foreground/10">
+                      <pre
+                        className="font-mono text-[11px] whitespace-pre-wrap break-words p-3 overflow-x-auto leading-relaxed"
+                        style={{ background: "rgba(76,122,98,0.06)", color: "rgba(236,234,228,0.82)" }}
+                      >
+                        {result.official_solution.replace(/\\n/g, '\n')}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}

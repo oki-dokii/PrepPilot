@@ -311,14 +311,31 @@
 @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
 .animate-fadeUp { animation: fadeUp 0.5s ease forwards; }
 
-.prose-dark h2 { color: var(--color-foreground); font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
+/* ─── Light-mode .prose-dark (problem statement panel in light contexts) ── */
+.prose-dark h1 { font-size: 1.25rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: var(--foreground); }
+.prose-dark h2 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; color: var(--color-foreground); }
+.prose-dark h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: var(--foreground); }
+.prose-dark h4 { font-size: 0.9rem; font-weight: 600; margin: 1rem 0 0.4rem; color: var(--foreground); }
 .prose-dark p  { color: var(--color-foreground); opacity: 0.8; margin-bottom: 0.75rem; line-height: 1.7; }
+.prose-dark strong { font-weight: 600; color: var(--foreground); }
+.prose-dark em { font-style: italic; }
+.prose-dark a { color: var(--blueprint); text-decoration: underline; }
+.prose-dark a:hover { opacity: 0.8; }
+.prose-dark blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: var(--foreground);
+  opacity: 0.7;
+  font-style: italic;
+}
 .prose-dark code {
   background: rgba(18, 20, 26, 0.06);
   border: 1px solid var(--border);
   border-radius: 3px;
   padding: 0.1em 0.4em;
   font-size: 0.85em;
+  font-family: var(--font-mono);
 }
 .prose-dark pre {
   background: rgba(18, 20, 26, 0.04);
@@ -327,6 +344,50 @@
   padding: 1rem;
   overflow-x: auto;
   margin: 0.75rem 0;
+  font-size: 0.85em;
+  line-height: 1.6;
 }
-.prose-dark ul, .prose-dark ol { padding-left: 1.5rem; }
-.prose-dark li { margin-bottom: 0.25rem; }
+.prose-dark pre code { background: none; border: none; padding: 0; }
+.prose-dark ul { padding-left: 1.5rem; list-style-type: disc; margin-bottom: 0.75rem; }
+.prose-dark ol { padding-left: 1.5rem; list-style-type: decimal; margin-bottom: 0.75rem; }
+.prose-dark li { margin-bottom: 0.25rem; line-height: 1.6; }
+.prose-dark table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.875rem; }
+.prose-dark th { border: 1px solid var(--border); padding: 0.4rem 0.75rem; background: rgba(18,20,26,0.04); font-weight: 600; text-align: left; }
+.prose-dark td { border: 1px solid var(--border); padding: 0.4rem 0.75rem; }
+.prose-dark hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+/* ─── Dark-mode overrides (test page inside .dark) ─────────────────────── */
+.dark .prose-dark h1 { color: rgba(236,234,228,0.95); }
+.dark .prose-dark h2 { color: rgba(236,234,228,0.9); }
+.dark .prose-dark h3 { color: rgba(236,234,228,0.88); }
+.dark .prose-dark h4 { color: rgba(236,234,228,0.85); }
+.dark .prose-dark p  { color: rgba(236,234,228,0.8); }
+.dark .prose-dark strong { color: rgba(236,234,228,0.95); }
+.dark .prose-dark a { color: #4a9fd4; }
+.dark .prose-dark blockquote { border-color: rgba(236,234,228,0.2); color: rgba(236,234,228,0.6); }
+.dark .prose-dark code {
+  background: rgba(236,234,228,0.07);
+  border: 1px solid rgba(236,234,228,0.13);
+  border-radius: 2px;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+  color: rgba(236,234,228,0.92);
+  font-family: var(--font-mono);
+}
+.dark .prose-dark pre {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(236,234,228,0.1);
+  border-radius: 0;
+  padding: 0.875rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  font-size: 0.82em;
+  line-height: 1.65;
+}
+.dark .prose-dark pre code { background: none; border: none; color: rgba(236,234,228,0.88); }
+.dark .prose-dark ul  { padding-left: 1.25rem; color: rgba(236,234,228,0.8); }
+.dark .prose-dark ol  { padding-left: 1.25rem; color: rgba(236,234,228,0.8); }
+.dark .prose-dark li  { margin-bottom: 0.2rem; color: rgba(236,234,228,0.8); }
+.dark .prose-dark th  { border-color: rgba(236,234,228,0.12); background: rgba(236,234,228,0.05); color: rgba(236,234,228,0.9); }
+.dark .prose-dark td  { border-color: rgba(236,234,228,0.1); color: rgba(236,234,228,0.78); }
+.dark .prose-dark hr  { border-color: rgba(236,234,228,0.1); }

@@ -46,6 +46,8 @@ class SubmissionResponse(BaseModel):
     total_hidden_count: int
     error_output: Optional[str] = None
     stdout: Optional[str] = None
+    official_solution: Optional[str] = None  # revealed only on Accepted
+    topic_tags: Optional[list] = None
 
 
 @router.post("/code", response_model=SubmissionResponse)
@@ -100,6 +102,17 @@ async def submit_code(
             error_output=error_output,
         )
 
+    # Fetch official solution to reveal on Accept
+    official_solution = None
+    topic_tags_out = None
+    if verdict == Verdict.accepted:
+        from app.models.models import Problem
+        prob_res = await db.execute(select(Problem).where(Problem.id == data.problem_id))
+        prob = prob_res.scalar_one_or_none()
+        if prob:
+            official_solution = prob.official_solution
+            topic_tags_out = prob.topic_tags
+
     submission = Submission(
         session_id=data.session_id,
         problem_id=data.problem_id,
@@ -121,6 +134,8 @@ async def submit_code(
         passed_hidden_count=submission.passed_hidden_count,
         total_hidden_count=submission.total_hidden_count,
         error_output=error_output,
+        official_solution=official_solution,
+        topic_tags=topic_tags_out,
     )
 
 
