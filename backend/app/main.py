@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import auth, tests, sessions, submissions, reports, chat, events, admin
+from app.routers import auth, tests, sessions, submissions, reports, chat, events, admin, leaderboard
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
 
 
 @app.get("/health")

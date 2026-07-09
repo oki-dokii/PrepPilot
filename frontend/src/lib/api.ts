@@ -130,3 +130,8 @@ export const eventsApi = {
   cancel: (slug: string) =>
     api.delete(`/api/events/${slug}`),
 };
+
+export const leaderboardApi = {
+  getGlobal: () =>
+    api.get("/api/leaderboard"),
+};

@@ -12,6 +12,7 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
   
   const nav = [
     { to: "/dashboard", label: "Dashboard" },
+    { to: "/leaderboard", label: "Leaderboard" },
     { to: "/library", label: "Library" },
     { to: "/settings", label: "Settings" },
   ];

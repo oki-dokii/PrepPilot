@@ -20,10 +20,18 @@ interface LeaderboardEntry {
   rank: number;
   user_name: string;
   score: number | null;
+  time_taken_seconds: number | null;
   percentile: number;
   status: string;
   is_me: boolean;
 }
+
+const formatTime = (seconds: number | null) => {
+  if (seconds === null) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
 export default function JoinEventPage() {
   const { user, loading: authLoading } = useAuth();
@@ -244,6 +252,7 @@ export default function JoinEventPage() {
                       <th className="py-2 pr-4">CANDIDATE</th>
                       <th className="py-2 pr-4">STATUS</th>
                       <th className="py-2 pr-4 text-right">SCORE</th>
+                      <th className="py-2 pr-4 text-right">TIME</th>
                       <th className="py-2 text-right">PERCENTILE</th>
                     </tr>
                   </thead>
@@ -265,6 +274,7 @@ export default function JoinEventPage() {
                           )}
                         </td>
                         <td className="py-2.5 pr-4 text-right">{entry.score !== null ? entry.score : "—"}</td>
+                        <td className="py-2.5 pr-4 text-right font-mono">{formatTime(entry.time_taken_seconds)}</td>
                         <td className={`py-2.5 text-right font-bold ${
                           entry.percentile >= 75 ? "text-mastery" :
                           entry.percentile >= 50 ? "text-foreground" :

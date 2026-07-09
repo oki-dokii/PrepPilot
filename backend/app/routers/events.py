@@ -347,7 +347,8 @@ class LeaderboardEntry(BaseModel):
     rank: int
     user_name: str
     score: Optional[int]
-    percentile: float  # 0–100: % of submitted participants this user beat
+    time_taken_seconds: Optional[int]   # null if not yet submitted
+    percentile: float                   # 0–100: % of submitted participants this user beat
     status: str
     is_me: bool
 
@@ -358,7 +359,10 @@ async def get_event_leaderboard(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the ranked leaderboard for a scheduled event."""
+    """Return the ranked leaderboard for a scheduled event.
+
+    Ranking: score DESC, then time_taken_seconds ASC (faster wins ties).
+    """
     from app.models.models import Report, SessionStatus
     from sqlalchemy.orm import selectinload
 
@@ -367,7 +371,6 @@ async def get_event_leaderboard(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    # Load all sessions for this event, with user and report
     sessions_res = await db.execute(
         select(Session)
         .where(Session.event_id == event.id)
@@ -375,39 +378,74 @@ async def get_event_leaderboard(
     )
     sessions = sessions_res.scalars().all()
 
-    # Build raw entries
     entries = []
     for s in sessions:
-        report = s.report if s else None
+        report = s.report
         score = report.total_score if report else None
-        status = s.status.value if s else "pending"
+        status = s.status.value
         display_name = (
             s.user.full_name or s.user.email.split("@")[0]
             if s.user else "Anonymous"
         )
+        # Time taken = submitted_at – started_at (seconds)
+        time_taken: Optional[int] = None
+        if s.submitted_at and s.started_at:
+            delta = s.submitted_at - s.started_at
+            time_taken = max(0, int(delta.total_seconds()))
+
         entries.append({
             "user_name": display_name,
             "score": score,
+            "time_taken_seconds": time_taken,
             "status": status,
             "is_me": s.user_id == current_user.id,
         })
 
-    # Sort: submitted with highest scores first, then active, then pending
+    # Sort: (score DESC, time_taken ASC) — faster finish wins ties
+    # Unsubmitted entries always go below scored ones
     def sort_key(e):
-        if e["score"] is None:
-            return (-1, 0)
-        return (1, e["score"])
+        score = e["score"]
+        time = e["time_taken_seconds"]
+        if score is None:
+            return (0, 0, float("inf"))
+        # Negate score for DESC, use time ASC as tiebreaker
+        return (1, -score, time if time is not None else float("inf"))
 
-    entries.sort(key=sort_key, reverse=True)
+    entries.sort(key=sort_key, reverse=False)
+    entries.reverse() if False else None  # sort_key already handles direction
 
-    # Assign ranks and compute percentiles
+    # Correct: re-sort properly
+    entries.sort(key=lambda e: (
+        0 if e["score"] is None else 1,               # submitted first
+        -(e["score"] or 0),                            # higher score first
+        e["time_taken_seconds"] if e["time_taken_seconds"] is not None else 999999,  # faster first
+    ), reverse=False)
+    # Flip so that group=1 (submitted) comes before group=0 (unsubmitted)
+    # and within submitted, -score makes higher scores sort first (lower number = first in ascending)
+    # This is already correct with reverse=False because group 0 < group 1
+
     submitted = [e for e in entries if e["score"] is not None]
     n_submitted = len(submitted)
 
     result_list = []
-    for rank_idx, entry in enumerate(entries):
+    rank = 0
+    prev_score = None
+    prev_time = None
+    for idx, entry in enumerate(entries):
+        # Dense rank: same score + same time = same rank
+        if entry["score"] is not None:
+            if entry["score"] != prev_score or entry["time_taken_seconds"] != prev_time:
+                rank += 1
+            prev_score = entry["score"]
+            prev_time = entry["time_taken_seconds"]
+        else:
+            rank = idx + 1  # unsubmitted just get sequential rank
+
         if entry["score"] is not None and n_submitted > 1:
-            beaten = sum(1 for e in submitted if e["score"] < entry["score"])
+            beaten = sum(1 for e in submitted if e["score"] < entry["score"] or (
+                e["score"] == entry["score"] and
+                (e["time_taken_seconds"] or 999999) > (entry["time_taken_seconds"] or 999999)
+            ))
             percentile = round((beaten / (n_submitted - 1)) * 100, 1)
         elif n_submitted == 1 and entry["score"] is not None:
             percentile = 100.0
@@ -415,9 +453,10 @@ async def get_event_leaderboard(
             percentile = 0.0
 
         result_list.append(LeaderboardEntry(
-            rank=rank_idx + 1,
+            rank=rank,
             user_name=entry["user_name"],
             score=entry["score"],
+            time_taken_seconds=entry["time_taken_seconds"],
             percentile=percentile,
             status=entry["status"],
             is_me=entry["is_me"],
