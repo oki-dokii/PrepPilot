@@ -31,6 +31,12 @@ class EventCreate(BaseModel):
     join_window_minutes: int = 15
     max_participants: Optional[int] = None
 
+class EventUpdate(BaseModel):
+    title: Optional[str] = None
+    scheduled_start: Optional[datetime] = None
+    join_window_minutes: Optional[int] = None
+    max_participants: Optional[int] = None
+
 class EventResponse(BaseModel):
     id: str
     test_id: str
@@ -156,7 +162,81 @@ async def list_events(
     ]
 
 
-@router.get("/{slug}", response_model=PublicEventInfo)
+
+@router.patch("/{slug}", response_model=EventResponse)
+async def reschedule_event(
+    slug: str,
+    data: EventUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reschedule or update an event. Only the creator can do this, and only before the event opens."""
+    result = await db.execute(select(ScheduledEvent).where(ScheduledEvent.slug == slug))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the event creator can reschedule it")
+
+    now = datetime.now(timezone.utc)
+    if event.scheduled_start <= now:
+        raise HTTPException(status_code=400, detail="Cannot reschedule an event that has already started")
+
+    if data.scheduled_start is not None:
+        if data.scheduled_start <= now:
+            raise HTTPException(status_code=400, detail="New start time must be in the future")
+        event.scheduled_start = data.scheduled_start
+    if data.title is not None:
+        event.title = data.title.strip()
+    if data.join_window_minutes is not None:
+        event.join_window_minutes = max(1, data.join_window_minutes)
+    if data.max_participants is not None:
+        event.max_participants = data.max_participants if data.max_participants > 0 else None
+
+    # Reset to scheduled if user rescheduled it
+    event.status = ScheduledEventStatus.scheduled
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+
+    return EventResponse(
+        id=event.id,
+        test_id=event.test_id,
+        creator_id=event.creator_id,
+        slug=event.slug,
+        title=event.title,
+        scheduled_start=event.scheduled_start,
+        join_window_minutes=event.join_window_minutes,
+        duration_minutes=event.duration_minutes,
+        max_participants=event.max_participants,
+        status=event.status.value,
+        created_at=event.created_at,
+    )
+
+
+@router.delete("/{slug}", status_code=204)
+async def cancel_event(
+    slug: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel (delete) a scheduled event. Only the creator can do this, and only before it opens."""
+    result = await db.execute(select(ScheduledEvent).where(ScheduledEvent.slug == slug))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the creator can cancel this event")
+
+    now = datetime.now(timezone.utc)
+    if event.scheduled_start <= now:
+        raise HTTPException(status_code=400, detail="Cannot cancel an event that has already started")
+
+    await db.delete(event)
+    await db.commit()
+
+
+@router.get("/{slug}/public", response_model=PublicEventInfo)
 async def get_public_event(
     slug: str,
     db: AsyncSession = Depends(get_db)

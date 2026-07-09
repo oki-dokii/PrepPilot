@@ -120,9 +120,13 @@ export const eventsApi = {
   list: () =>
     api.get("/api/events"),
   getPublicInfo: (slug: string) =>
-    api.get(`/api/events/${slug}`),
+    api.get(`/api/events/${slug}/public`),
   join: (slug: string) =>
     api.post(`/api/events/${slug}/join`),
   leaderboard: (slug: string) =>
     api.get(`/api/events/${slug}/leaderboard`),
+  reschedule: (slug: string, data: { title?: string; scheduled_start?: string; join_window_minutes?: number; max_participants?: number | null }) =>
+    api.patch(`/api/events/${slug}`, data),
+  cancel: (slug: string) =>
+    api.delete(`/api/events/${slug}`),
 };
