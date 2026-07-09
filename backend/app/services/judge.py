@@ -20,12 +20,19 @@ LANGUAGE_MAP = {
 }
 
 def _normalize_output(s: str) -> str:
-    """Strips trailing/leading whitespace per line, collapses \r\n, ignores trailing empty lines."""
+    """Normalises output for comparison:
+    - Collapses \r\n to \n
+    - Strips trailing whitespace from every line
+    - Removes trailing blank lines (end of file), but preserves internal blank lines
+    """
     if not s:
         return ""
     s = s.replace("\r\n", "\n").replace("\r", "\n")
-    lines = [line.strip() for line in s.strip().splitlines()]
-    return "\n".join(line for line in lines if line)
+    lines = [line.rstrip() for line in s.splitlines()]
+    # Drop trailing empty lines only
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines)
 
 
 def _outputs_match(actual: str, expected: str) -> bool:
@@ -311,8 +318,8 @@ async def run_against_hidden_tests(
             else:
                 return Verdict.runtime_error, max_runtime, passed, total, stderr.strip() or "Runtime Error."
 
-        # TLE
-        if "Time Limit Exceeded" in stderr:
+        # TLE — check Piston's injected message AND common kill signals
+        if "Time Limit Exceeded" in stderr or "Killed" in stderr or (runtime > 14000):
             return Verdict.time_limit, max_runtime, passed, total, None
 
         # Runtime error (non-empty stderr while ran=True)
@@ -329,7 +336,12 @@ async def run_against_hidden_tests(
                 return Verdict.wrong_answer, max_runtime, passed, total, diff
             else:
                 if update_expected_outputs:
-                    tc.expected_output = stdout.strip() if stdout else ""
+                    # Only trust this output if stdout is non-empty (empty = likely buggy solution)
+                    if stdout and stdout.strip():
+                        tc.expected_output = stdout.strip()
+                    else:
+                        # Buggy solution produced empty output — skip overwrite
+                        pass
                 else:
                     diff = f"Failed on hidden test case #{i + 1}.\nExpected output did not match."
                     return Verdict.wrong_answer, max_runtime, passed, total, diff

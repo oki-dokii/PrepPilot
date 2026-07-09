@@ -68,7 +68,7 @@ class Problem(Base):
 
     id = Column(String(36), primary_key=True, default=gen_uuid)
     title = Column(String(500), nullable=False)
-    topic_tags = Column(ARRAY(String), default=[])
+    topic_tags = Column(ARRAY(String), default=list)
     difficulty = Column(SAEnum(DifficultyEnum), nullable=False)
     statement = Column(Text, nullable=False)       # markdown
     constraints = Column(Text)
@@ -109,11 +109,11 @@ class MCQ(Base):
     __tablename__ = "mcqs"
 
     id = Column(String(36), primary_key=True, default=gen_uuid)
-    topic_tags = Column(ARRAY(String), default=[])
+    topic_tags = Column(ARRAY(String), default=list)
     difficulty = Column(SAEnum(DifficultyEnum), nullable=False)
     question = Column(Text, nullable=False)
     options = Column(JSON, nullable=False)          # {"A": "...", "B": "...", ...}
-    correct_option = Column(String(1), nullable=False)  # "A" | "B" | "C" | "D"
+    correct_option = Column(String(2), nullable=False)  # "A" | "B" | "C" | "D" (String(2) avoids silent truncation on trailing dot)
     explanation = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

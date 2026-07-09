@@ -19,10 +19,9 @@ interface User {
 
 interface AuthContextValue {
   user: User | null;
-  token: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
 }
 
@@ -30,19 +29,16 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem("pp_token");
     if (stored) {
-      setToken(stored);
       authApi
         .me()
         .then((res) => setUser(res.data))
         .catch(() => {
           localStorage.removeItem("pp_token");
-          setToken(null);
         })
         .finally(() => setLoading(false));
     } else {
@@ -54,7 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.login(email, password);
     const { access_token, user: userData } = res.data;
     localStorage.setItem("pp_token", access_token);
-    setToken(access_token);
     setUser(userData);
   };
 
@@ -62,7 +57,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.register(email, password, fullName);
     const { access_token, user: userData } = res.data;
     localStorage.setItem("pp_token", access_token);
-    setToken(access_token);
     setUser(userData);
   };
 
@@ -71,12 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout();
     } catch (e) {}
     localStorage.removeItem("pp_token");
-    setToken(null);
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

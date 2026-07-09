@@ -36,6 +36,20 @@ async def generate_test(
     db: AsyncSession = Depends(get_db),
 ):
     """Enqueue a test-generation job and return the test stub."""
+    # Validate blueprint items before passing to LLM/DB
+    VALID_TYPES = {"mcq", "coding"}
+    VALID_DIFFICULTIES = {"easy", "medium", "hard"}
+    if spec.blueprint:
+        for i, item in enumerate(spec.blueprint):
+            if not isinstance(item, dict):
+                raise HTTPException(status_code=400, detail=f"Blueprint item {i} must be an object.")
+            if item.get("type") not in VALID_TYPES:
+                raise HTTPException(status_code=400, detail=f"Blueprint item {i}: 'type' must be 'mcq' or 'coding'.")
+            if item.get("difficulty") and item.get("difficulty").lower() not in VALID_DIFFICULTIES:
+                raise HTTPException(status_code=400, detail=f"Blueprint item {i}: 'difficulty' must be easy/medium/hard.")
+            if not isinstance(item.get("topic", ""), str) or len(item.get("topic", "")) > 200:
+                raise HTTPException(status_code=400, detail=f"Blueprint item {i}: 'topic' must be a string ≤200 chars.")
+
     from app.services.test_gen import generate_test_sync
 
     test = await generate_test_sync(

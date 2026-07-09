@@ -255,8 +255,8 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
                         problem_id=problem.id,
                         input=tc["input"],
                         expected_output=tc["expected"],
-                        is_hidden=tc.get("is_hidden", True),
-                        category=tc.get("category", "random"),
+                        is_hidden=tc.get("is_hidden", False),  # consistent with LLM path
+                        category=tc.get("category", "sample"),
                     ))
                 await db.flush()
 

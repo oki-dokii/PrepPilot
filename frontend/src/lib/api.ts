@@ -69,11 +69,11 @@ export const testsApi = {
 // ─── Sessions ─────────────────────────────────────────────────────────────────
 
 export const sessionsApi = {
-  create: (testId: string) => api.post("/api/sessions/", { test_id: testId }),
+  create: (testId: string) => api.post("/api/sessions", { test_id: testId }),
 
   get: (sessionId: string) => api.get(`/api/sessions/${sessionId}`),
 
-  list: () => api.get("/api/sessions/"),
+  list: () => api.get("/api/sessions"),
 
   submit: (sessionId: string, antiCheat?: { tab_switches: number, paste_bursts: number }) =>
     api.post(`/api/sessions/${sessionId}/submit`, antiCheat || { tab_switches: 0, paste_bursts: 0 }),
@@ -110,7 +110,7 @@ export const reportsApi = {
 
 export const eventsApi = {
   create: (testId: string, title: string, scheduledStart: string, joinWindowMinutes: number, maxParticipants?: number) =>
-    api.post("/api/events/", { 
+    api.post("/api/events", { 
       test_id: testId, 
       title, 
       scheduled_start: scheduledStart, 
@@ -118,7 +118,7 @@ export const eventsApi = {
       max_participants: maxParticipants
     }),
   list: () =>
-    api.get("/api/events/"),
+    api.get("/api/events"),
   getPublicInfo: (slug: string) =>
     api.get(`/api/events/${slug}`),
   join: (slug: string) =>

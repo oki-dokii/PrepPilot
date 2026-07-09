@@ -208,6 +208,40 @@ STUB_PROBLEMS = {
     ],
 }
 
+# ─── JSON parsing helpers ────────────────────────────────────────────────────
+
+def _safe_parse_json(raw: str) -> dict | list:
+    """
+    Robustly parse LLM JSON output:
+    1. Try direct parse (handles perfect output from Groq json_object mode).
+    2. Extract from code fences using regex (handles wrapped JSON).
+    3. Apply trailing-comma cleanup ONLY if both above fail, to avoid
+       corrupting JSON string values that happen to contain ', }' or ', ]'.
+    """
+    text = raw.strip()
+
+    # Step 1: try direct parse
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Step 2: extract from code fence
+    m = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
+    if m:
+        inner = m.group(1).strip()
+        try:
+            return json.loads(inner)
+        except json.JSONDecodeError:
+            text = inner  # fall through with extracted text
+
+    # Step 3: trailing-comma cleanup as last resort (risky — only on failure)
+    cleaned = re.sub(r',(\s*[}\]])', r'\1', text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Could not parse LLM JSON after all attempts: {e}\nRaw (first 300): {raw[:300]}")
+
 
 # ─── LLM client ────────────────────────────────────────────────────────────
 
@@ -485,25 +519,11 @@ Return a single JSON object (with a `_thought_process` field first to brainstorm
 }}"""
 
     raw = await _call_llm(prompt)
-    text = raw.strip()
-
-    text = re.sub(r',\s*}', '}', text)
-    text = re.sub(r',\s*]', ']', text)
-    
-    # Robust code fence extraction (handles nested fences in JSON strings)
     try:
-        return json.loads(text)
-    except Exception:
-        m = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
-        if m:
-            text = m.group(1).strip()
-            text = re.sub(r',\s*}', '}', text)
-            text = re.sub(r',\s*]', ']', text)
-        try:
-            return json.loads(text)
-        except Exception as e:
-            logger.warning(f"Failed to parse LLM JSON despite cleanup: {e}\nRaw output: {raw[:500]}")
-            raise
+        return _safe_parse_json(raw)
+    except Exception as e:
+        logger.warning(f"Failed to parse LLM JSON: {e}")
+        raise
 
 
 async def generate_hidden_test_cases_with_gemini(problem_dict: dict) -> list:
@@ -559,29 +579,11 @@ Return a single JSON object matching this schema EXACTLY:
 }}
 """
     raw = await _call_llm(prompt)
-    
-    # Clean trailing commas and extract
-    text = raw.strip()
-    import re
-    text = re.sub(r',\s*}', '}', text)
-    text = re.sub(r',\s*\]', ']', text)
-    
-    import json
     try:
-        data = json.loads(text.strip())
+        data = _safe_parse_json(raw)
         return data.get("test_cases", [])
-    except Exception:
-        m = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
-        if m:
-            inner = m.group(1).strip()
-            inner = re.sub(r',\s*}', '}', inner)
-            inner = re.sub(r',\s*\]', ']', inner)
-            try:
-                data = json.loads(inner)
-                return data.get("test_cases", [])
-            except Exception:
-                pass
-        logger.error(f"Error parsing hidden test cases output: {raw[:300]}")
+    except Exception as e:
+        logger.error(f"Error parsing hidden test cases output: {e}\nRaw: {raw[:300]}")
         return []
 
 
@@ -604,32 +606,10 @@ CRITICAL: Ensure the `test_cases` input format is always a valid JSON string map
 Return the fixed problem as a JSON object matching the EXACT original schema (no markdown fences, make sure to escape newlines as \\n in strings)."""
 
     raw = await _call_llm(prompt)
-    
-    text = raw.strip()
-    if text.startswith("```"):
-        parts = text.split("```")
-        if len(parts) >= 3:
-            text = parts[1]
-            if text.startswith("json"):
-                text = text[4:]
-            text = text.strip()
-            
-    text = re.sub(r',\s*}', '}', text)
-    text = re.sub(r',\s*]', ']', text)
-    
     try:
-        return json.loads(text)
+        return _safe_parse_json(raw)
     except Exception:
-        m = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
-        if m:
-            inner = m.group(1).strip()
-            inner = re.sub(r',\s*}', '}', inner)
-            inner = re.sub(r',\s*]', ']', inner)
-            try:
-                return json.loads(inner)
-            except Exception:
-                pass
-        raise ValueError(f"fix_generated_problem: unparseable LLM response")
+        raise ValueError("fix_generated_problem: unparseable LLM response")
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────

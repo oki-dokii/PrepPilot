@@ -37,12 +37,19 @@ export default function DashboardPage() {
   const [focusTopic, setFocusTopic] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [joiningCohort, setJoiningCohort] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
 
   const handleJoinCohort = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim() || joiningCohort) return;
     setJoiningCohort(true);
-    router.push(`/join/${inviteCode.trim()}`);
+    try {
+      router.push(`/join/${inviteCode.trim()}`);
+    } catch {
+      setJoiningCohort(false);
+    }
+    // Reset after short delay to prevent double-submit
+    setTimeout(() => setJoiningCohort(false), 3000);
   };
 
   useEffect(() => {
@@ -55,7 +62,7 @@ export default function DashboardPage() {
         setSessions(sessionsRes.data);
         setMasteryData(masteryRes.data);
       })
-      .catch((err) => console.error("Failed to load dashboard data:", err))
+      .catch(() => setDashboardError("Failed to load your data. Please refresh the page."))
       .finally(() => setLoadingSessions(false));
   }, [user]);
 
@@ -107,7 +114,8 @@ export default function DashboardPage() {
   const avgScore = useMemo(() => {
     const scored = sessions.filter(s => s.score !== null);
     if (scored.length === 0) return null;
-    return Math.round(scored.reduce((a, s) => a + s.score!, 0) / scored.length);
+    const total = scored.reduce((a, s) => a + (s.score ?? 0), 0);
+    return scored.length > 0 ? Math.round(total / scored.length) : null;
   }, [sessions]);
 
   if (loading || !user) {
@@ -121,6 +129,13 @@ export default function DashboardPage() {
   return (
     <LayoutWrapper>
       <div className="mx-auto max-w-[1240px]">
+        {/* Error banner */}
+        {dashboardError && (
+          <div className="mb-4 text-[13px] font-mono text-rust border border-rust/30 bg-rust/5 px-4 py-2.5 flex items-center justify-between">
+            <span>⚠ {dashboardError}</span>
+            <button onClick={() => setDashboardError("")} className="underline cursor-pointer">Dismiss</button>
+          </div>
+        )}
         {/* Header section */}
         <div className="flex items-center justify-between mb-8">
           <div>

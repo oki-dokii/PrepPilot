@@ -47,7 +47,7 @@ class SubmissionResponse(BaseModel):
     error_output: Optional[str] = None
     stdout: Optional[str] = None
     official_solution: Optional[str] = None  # revealed only on Accepted
-    topic_tags: Optional[list] = None
+    topic_tags: Optional[list[str]] = None
 
 
 @router.post("/code", response_model=SubmissionResponse)

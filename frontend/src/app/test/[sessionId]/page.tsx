@@ -486,9 +486,11 @@ export default function TestPage() {
                       sessionId={sessionId}
                       disabled={disabled}
                       initialData={
-                        localMcqAnswers[activeQ.mcq.id]
-                          ? { chosen_option: localMcqAnswers[activeQ.mcq.id], is_correct: false, correct_option: "" }
-                          : session.mcq_answers?.[activeQ.mcq.id]
+                        // prefer the server-stored answer (which has correct is_correct value)
+                        session.mcq_answers?.[activeQ.mcq.id]
+                        ?? (localMcqAnswers[activeQ.mcq.id]
+                          ? { chosen_option: localMcqAnswers[activeQ.mcq.id], is_correct: undefined as unknown as boolean, correct_option: "" }
+                          : undefined)
                       }
                       onAnswer={(mcqId, chosenOption) => {
                         setAnsweredMCQs((s) => new Set([...s, mcqId]));

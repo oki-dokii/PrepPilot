@@ -376,7 +376,7 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
                 <div className="mt-2">
                   <div className="stamp-id text-rust/50 mb-1">STDERR</div>
                   <pre className="font-mono text-[11.5px] whitespace-pre-wrap break-words text-rust">
-                    {result.error_output}
+                    {(result.error_output || "").replace(/\\n/g, '\n')}
                   </pre>
                 </div>
               )}
@@ -401,17 +401,8 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
                   const p = result.passed_hidden_count;
                   const t = result.total_hidden_count;
                   const pct = Math.round((p / t) * 100);
-                  // Estimate test category from test index (2 sample, 3 boundary, 2 structural, 2 adversarial, 1 perf, 2 random)
-                  const failIdx = p; // 0-indexed failed test
-                  const categories = [
-                    ...Array(2).fill('sample'),
-                    ...Array(3).fill('boundary'),
-                    ...Array(3).fill('structural'),
-                    ...Array(2).fill('adversarial'),
-                    ...Array(1).fill('performance'),
-                    ...Array(10).fill('random'),
-                  ];
-                  const failCategory = categories[Math.min(failIdx, categories.length - 1)];
+                  // Show test number only — category estimation is too inaccurate without real metadata
+                  const failLabel = `test #${p + 1}`;
                   return (
                     <div className="mt-1.5 space-y-1.5">
                       {/* Segmented bar */}
@@ -435,7 +426,7 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
                           {p}/{t} passed
                           {p < t && (
                             <span style={{ color: 'var(--rust)', marginLeft: '0.5rem' }}>
-                              · Failed: #{p + 1} ({failCategory})
+                            · Failed on {failLabel}
                             </span>
                           )}
                         </span>
@@ -465,7 +456,7 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
                     color: "var(--rust)",
                   }}
                 >
-                  {result.error_output}
+                  {(result.error_output || "").replace(/\\n/g, '\n')}
                 </pre>
               )}
 
