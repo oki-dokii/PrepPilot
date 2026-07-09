@@ -7,7 +7,7 @@ import { reportsApi } from "@/lib/api";
 import Link from "next/link";
 import { LayoutWrapper, StampCard } from "@/components/LayoutWrapper";
 import { MasteryGraph, DEFAULT_NODES } from "@/components/MasteryGraph";
-import { Loader2, Brain, ArrowRight, AlertTriangle, Printer } from "lucide-react";
+import { Loader2, Brain, ArrowRight, AlertTriangle, Printer, Shield, ShieldAlert } from "lucide-react";
 
 interface QuestionFeedback {
   question_type: "mcq" | "coding";
@@ -88,6 +88,13 @@ export default function ReportPage() {
         n.label.toLowerCase().includes(wt.toLowerCase())
       )
     ).map((n) => n.id);
+  }, [report]);
+
+  const trustScore = useMemo(() => {
+    if (!report) return 100;
+    // Simple penalty logic: each tab switch = -2%, each paste burst = -15%
+    const penalty = (report.tab_switches * 2) + (report.paste_bursts * 15);
+    return Math.max(0, 100 - penalty);
   }, [report]);
 
   if (authLoading || loading) {
@@ -176,12 +183,29 @@ export default function ReportPage() {
             <MasteryGraph size="md" animate highlight={weakNodeIds} />
           </div>
 
-          <div className="flex items-center gap-4 border-t border-border pt-4 mt-2">
-            <div>
-              <div className="stamp-id mb-0.5 flex items-center gap-1 text-rust"><AlertTriangle size={10} /> INTEGRITY FLAGS</div>
-              <div className="flex gap-4 mt-2">
-                <div className="font-mono text-[12px] text-foreground/80">Tab Switches: <strong className={report.tab_switches > 0 ? "text-rust" : ""}>{report.tab_switches}</strong></div>
-                <div className="font-mono text-[12px] text-foreground/80">Paste Bursts: <strong className={report.paste_bursts > 0 ? "text-rust" : ""}>{report.paste_bursts}</strong></div>
+          <div className="flex flex-col gap-3 border-t border-border pt-4 mt-2">
+            <div className="flex items-center justify-between">
+              <div className="stamp-id flex items-center gap-1 text-foreground">
+                {trustScore >= 80 ? <Shield size={12} className="text-mastery" /> : <ShieldAlert size={12} className="text-rust" />} 
+                PROCTORING & INTEGRITY
+              </div>
+              <div className={`font-mono text-[14px] font-bold ${trustScore >= 80 ? "text-mastery" : "text-rust"}`}>
+                Trust Score: {trustScore}%
+              </div>
+            </div>
+            <div className="flex gap-6 bg-foreground/3 p-3 border border-border">
+              <div>
+                <div className="text-[10px] text-foreground/50 font-mono mb-0.5">TAB SWITCHES</div>
+                <div className={`font-display text-[16px] font-semibold ${report.tab_switches > 0 ? "text-rust" : "text-foreground"}`}>
+                  {report.tab_switches}
+                </div>
+              </div>
+              <div className="w-[1px] bg-border my-1" />
+              <div>
+                <div className="text-[10px] text-foreground/50 font-mono mb-0.5">PASTE BURSTS</div>
+                <div className={`font-display text-[16px] font-semibold ${report.paste_bursts > 0 ? "text-rust" : "text-foreground"}`}>
+                  {report.paste_bursts}
+                </div>
               </div>
             </div>
           </div>
