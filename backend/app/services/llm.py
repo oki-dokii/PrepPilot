@@ -236,7 +236,7 @@ async def _call_llm(prompt: str, is_json: bool = True) -> str:
         import google.generativeai as genai
         genai.configure(api_key=settings.GEMINI_API_KEY)
         model = genai.GenerativeModel(
-            model_name="gemini-flash-lite-latest",
+            model_name="gemini-2.0-flash-lite",
             generation_config={
                 "temperature": 0.7,
                 "response_mime_type": "application/json" if is_json else "text/plain",
@@ -485,25 +485,25 @@ Return a single JSON object (with a `_thought_process` field first to brainstorm
 }}"""
 
     raw = await _call_llm(prompt)
-    
-    # Clean trailing commas and extract
     text = raw.strip()
-    if text.startswith("```"):
-        parts = text.split("```")
-        if len(parts) >= 3:
-            text = parts[1]
-            if text.startswith("json"):
-                text = text[4:]
-            text = text.strip()
-            
+
     text = re.sub(r',\s*}', '}', text)
     text = re.sub(r',\s*]', ']', text)
     
+    # Robust code fence extraction (handles nested fences in JSON strings)
     try:
         return json.loads(text)
-    except Exception as e:
-        logger.warning(f"Failed to parse LLM JSON despite cleanup: {e}\nRaw output: {raw[:500]}")
-        raise
+    except Exception:
+        m = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
+        if m:
+            text = m.group(1).strip()
+            text = re.sub(r',\s*}', '}', text)
+            text = re.sub(r',\s*]', ']', text)
+        try:
+            return json.loads(text)
+        except Exception as e:
+            logger.warning(f"Failed to parse LLM JSON despite cleanup: {e}\nRaw output: {raw[:500]}")
+            raise
 
 
 async def generate_hidden_test_cases_with_gemini(problem_dict: dict) -> list:
@@ -566,19 +566,22 @@ Return a single JSON object matching this schema EXACTLY:
     text = re.sub(r',\s*}', '}', text)
     text = re.sub(r',\s*\]', ']', text)
     
-    if text.startswith("```"):
-        parts = text.split("```")
-        if len(parts) >= 3:
-            text = parts[1]
-            if text.startswith("json"):
-                text = text[4:]
-    
     import json
     try:
         data = json.loads(text.strip())
         return data.get("test_cases", [])
-    except Exception as e:
-        logger.error(f"Error parsing hidden test cases output: {e}\nRaw output: {raw}")
+    except Exception:
+        m = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
+        if m:
+            inner = m.group(1).strip()
+            inner = re.sub(r',\s*}', '}', inner)
+            inner = re.sub(r',\s*\]', ']', inner)
+            try:
+                data = json.loads(inner)
+                return data.get("test_cases", [])
+            except Exception:
+                pass
+        logger.error(f"Error parsing hidden test cases output: {raw[:300]}")
         return []
 
 
@@ -614,7 +617,19 @@ Return the fixed problem as a JSON object matching the EXACT original schema (no
     text = re.sub(r',\s*}', '}', text)
     text = re.sub(r',\s*]', ']', text)
     
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except Exception:
+        m = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
+        if m:
+            inner = m.group(1).strip()
+            inner = re.sub(r',\s*}', '}', inner)
+            inner = re.sub(r',\s*]', ']', inner)
+            try:
+                return json.loads(inner)
+            except Exception:
+                pass
+        raise ValueError(f"fix_generated_problem: unparseable LLM response")
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────

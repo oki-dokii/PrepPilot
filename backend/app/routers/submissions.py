@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime, timezone
 
 from app.core.database import get_db
-from app.models.models import Submission, MCQAnswer, Session, SessionStatus, User, Verdict
+from app.models.models import Submission, MCQAnswer, Session, SessionStatus, User, Verdict, TestQuestion
 from app.routers.auth import get_current_user
 
 router = APIRouter()
@@ -63,7 +63,22 @@ async def submit_code(
     session = result.scalar_one_or_none()
     _assert_session_open(session)
 
-    if data.custom_input is not None:
+    # Validate language
+    from app.services.judge import SUPPORTED_LANGUAGES
+    if data.language not in SUPPORTED_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language '{data.language}'. Must be one of: {', '.join(sorted(SUPPORTED_LANGUAGES))}")
+
+    # Validate problem belongs to this session's test
+    tq_result = await db.execute(
+        select(TestQuestion).where(
+            TestQuestion.test_id == session.test_id,
+            TestQuestion.problem_id == data.problem_id,
+        )
+    )
+    if not tq_result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Problem does not belong to this session.")
+
+    if data.custom_input is not None and data.custom_input.strip() != "":
         from app.services.judge import run_custom_input
         stdout, stderr, ran, runtime_ms, error_output = await run_custom_input(
             problem_id=data.problem_id,
@@ -166,10 +181,19 @@ async def submit_mcq(
         )
     )
     existing_record = existing.scalar_one_or_none()
-    is_correct = data.chosen_option.upper() == mcq.correct_option.upper()
+    
+    # Validate option — must be one of the MCQ's own option keys
+    valid_options = {k.upper() for k in (mcq.options or {}).keys()}
+    if not valid_options:
+        valid_options = {"A", "B", "C", "D"}
+    chosen_upper = data.chosen_option.upper()
+    if chosen_upper not in valid_options:
+        raise HTTPException(status_code=400, detail=f"Invalid option '{data.chosen_option}'. Valid: {', '.join(sorted(valid_options))}")
+    
+    is_correct = chosen_upper == mcq.correct_option.upper()
 
     if existing_record:
-        existing_record.chosen_option = data.chosen_option.upper()
+        existing_record.chosen_option = chosen_upper
         existing_record.is_correct = is_correct
         await db.flush()
     else:

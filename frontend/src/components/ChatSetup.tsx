@@ -25,6 +25,7 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatingTest, setGeneratingTest] = useState(false);
+  const [generateError, setGenerateError] = useState("");
   const [proposedBlueprint, setProposedBlueprint] = useState<any>(null);
   const [problemStyle, setProblemStyle] = useState<"standard" | "leetcode">("standard");
   const endRef = useRef<HTMLDivElement>(null);
@@ -67,6 +68,10 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
       } else if (reply) {
         setMessages([...newMessages, { role: "assistant", content: reply }]);
         setLoading(false);
+      } else {
+        // Fallback: API returned neither reply nor blueprint — reset loading
+        setMessages([...newMessages, { role: "assistant", content: "I didn't get a response. Please try rephrasing your request." }]);
+        setLoading(false);
       }
     } catch (err: any) {
       console.error(err);
@@ -78,6 +83,7 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
   const handleConfirm = async () => {
     if (!proposedBlueprint) return;
     setGeneratingTest(true);
+    setGenerateError("");
     try {
       const genRes = await api.post("/api/tests/generate", {
          topic: "Custom Assessment",
@@ -88,12 +94,13 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
       });
       
       const testId = genRes.data.id;
-      const sessionRes = await api.post(`/api/sessions/`, { test_id: testId });
+      const sessionRes = await api.post(`/api/sessions`, { test_id: testId });
       onTestReady(sessionRes.data.id);
+      // generatingTest intentionally stays true — parent will navigate away
     } catch (err) {
       console.error(err);
       setGeneratingTest(false);
-      alert("Failed to generate test. Please try again.");
+      setGenerateError("Failed to generate test. Please try again.");
     }
   };
 
@@ -101,6 +108,7 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
   const handleScheduleEvent = async () => {
     if (!proposedBlueprint || !onScheduleReady) return;
     setGeneratingTest(true);
+    setGenerateError("");
     try {
       const genRes = await api.post("/api/tests/generate", {
          topic: "Scheduled Assessment",
@@ -110,10 +118,11 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
          duration_minutes: proposedBlueprint.duration_minutes || 90
       });
       onScheduleReady(genRes.data.id, proposedBlueprint.duration_minutes || 90);
+      // generatingTest intentionally stays true — parent will navigate away
     } catch (err) {
       console.error(err);
       setGeneratingTest(false);
-      alert("Failed to generate test for scheduling. Please try again.");
+      setGenerateError("Failed to generate test for scheduling. Please try again.");
     }
   };
 
@@ -244,6 +253,11 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
                     >
                       I want to make changes
                     </button>
+                    {generateError && (
+                      <div className="text-[12px] font-mono text-rust border border-rust/30 bg-rust/5 px-3 py-2 mt-1">
+                        ⚠ {generateError}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

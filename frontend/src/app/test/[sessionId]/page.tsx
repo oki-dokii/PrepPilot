@@ -70,6 +70,7 @@ export default function TestPage() {
   const [localMcqAnswers, setLocalMcqAnswers] = useState<Record<string, string>>({});
   const [localCode, setLocalCode] = useState<Record<string, {code: string, language: string, verdict?: string}>>({});
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [tabWarning, setTabWarning] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -118,26 +119,26 @@ export default function TestPage() {
   }, [session]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setLoading(false);
+      setError("Session not found.");
+      return;
+    }
     sessionsApi.get(sessionId)
       .then((res) => {
         setSession(res.data);
         if (res.data.status === "submitted") setSubmitted(true);
-        if (qParam && !isNaN(Number(qParam)) && Number(qParam) >= 0 && Number(qParam) < res.data.questions.length) {
-          setActiveIdx(Number(qParam));
-        }
+        // Only jump to qParam if user hasn't navigated away themselves
+        // (don't overwrite activeIdx which was already set from qParam in useState)
       })
       .catch(() => setError("Session not found or you don't have access."))
       .finally(() => setLoading(false));
-  }, [sessionId, qParam]);
+  }, [sessionId]);
 
-  const handleExpire = useCallback(() => {
-    if (!submitted) handleFinalSubmit();
-  }, [submitted]);
-
-  const handleFinalSubmit = async () => {
+  const handleFinalSubmit = useCallback(async () => {
     if (submitting || submitted) return;
     setSubmitting(true);
+    setSubmitError("");
     setShowSubmitConfirm(false);
     try {
       await sessionsApi.submit(sessionId, {
@@ -148,8 +149,13 @@ export default function TestPage() {
       setTimeout(() => router.push(`/report/${sessionId}`), 1200);
     } catch {
       setSubmitting(false);
+      setSubmitError("Submission failed — please check your connection and try again.");
     }
-  };
+  }, [submitting, submitted, sessionId, tabSwitches, pasteBursts, router]);
+
+  const handleExpire = useCallback(() => {
+    handleFinalSubmit();
+  }, [handleFinalSubmit]);
 
   if (authLoading || loading) {
     return (
@@ -193,6 +199,15 @@ export default function TestPage() {
         <div className="fixed top-0 left-0 right-0 z-50 bg-rust text-chalk py-2 text-center stamp-id flex items-center justify-center gap-2 animate-fadeUp">
           <AlertTriangle size={12} />
           TAB SWITCH DETECTED — STAY ON THIS PAGE DURING THE ASSESSMENT
+        </div>
+      )}
+
+      {/* Submit error banner */}
+      {submitError && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-rust/90 text-chalk py-2 px-4 text-center stamp-id flex items-center justify-center gap-2 animate-fadeUp">
+          <AlertTriangle size={12} />
+          {submitError}
+          <button onClick={() => setSubmitError("")} className="ml-2 underline cursor-pointer">Dismiss</button>
         </div>
       )}
 
@@ -296,13 +311,15 @@ export default function TestPage() {
               
               let resultIcon = null;
               if (disabled) {
+                // Only show result icons when session is submitted (has real answers loaded)
                 const isCorrect = qq.question_type === "mcq"
                   ? session.mcq_answers?.[qq.mcq?.id || ""]?.is_correct
                   : session.code_submissions?.[qq.coding?.id || ""]?.verdict === "accepted";
                 
-                if (isCorrect) {
+                // Only decorate if explicitly answered: true = ✓, false = ✗, undefined = no icon
+                if (isCorrect === true) {
                   resultIcon = <span className="text-mastery text-[12px] font-bold">✓</span>;
-                } else {
+                } else if (isCorrect === false) {
                   resultIcon = <span className="text-rust text-[12px] font-bold">✗</span>;
                 }
               }

@@ -56,10 +56,17 @@ def _outputs_match(actual: str, expected: str) -> bool:
     except (ValueError, TypeError):
         return False
 
+SUPPORTED_LANGUAGES = {"python3", "javascript", "cpp", "java"}
+
 def _is_compile_error(language: str, stderr: str) -> bool:
     if not stderr:
         return False
-    if language in ["python3", "javascript"]:
+    if language == "python3":
+        # All parse-time errors before user code runs
+        return any(tag in stderr for tag in [
+            "SyntaxError:", "IndentationError:", "TabError:",
+        ])
+    if language == "javascript":
         return "SyntaxError:" in stderr
     if language == "cpp":
         return "error:" in stderr or "cannot access 'a.out'" in stderr or "No such file" in stderr
@@ -214,7 +221,8 @@ async def run_against_hidden_tests(
     total = len(test_cases)
 
     if total == 0:
-        return Verdict.accepted, 0, 0, 0, None
+        # No test cases generated yet — treat as pending, not accepted
+        return Verdict.runtime_error, 0, 0, 0, "No test cases available for this problem. Please try again."
 
     # Fetch problem to get driver_code
     from app.models.models import Problem

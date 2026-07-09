@@ -111,6 +111,7 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
     setCode(starter);
     setResult(null);
     setApiError("");
+    setShowSolution(false);
     onChange?.(starter, language);
   };
   const isModified = code !== getDefaultCode(language);
@@ -132,16 +133,21 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
   const [isDragging, setIsDragging] = useState(false);
   const editorRef = useRef<any>(null);
 
+  // Drag-to-resize console — clean up listeners on unmount to prevent memory leak
+  const isDraggingRef = useRef(false);
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    isDraggingRef.current = true;
     setIsDragging(true);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingRef.current) return;
       const newHeight = window.innerHeight - moveEvent.clientY;
       setConsoleHeight(Math.max(100, Math.min(newHeight, window.innerHeight * 0.8)));
     };
 
     const handleMouseUp = () => {
+      isDraggingRef.current = false;
       setIsDragging(false);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
@@ -386,6 +392,8 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
                     ? <CheckCircle2 size={14} />
                     : result.verdict === "time_limit"
                     ? <Clock size={14} />
+                    : result.verdict === "wrong_answer"
+                    ? <XCircle size={14} />
                     : <AlertTriangle size={14} />}
                   {verdict.label}
                 </div>

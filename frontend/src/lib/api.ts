@@ -17,6 +17,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 — clear stale token and redirect to login
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && typeof window !== "undefined") {
+      const isLoginPage = window.location.pathname === "/login" || window.location.pathname === "/register";
+      if (!isLoginPage) {
+        localStorage.removeItem("pp_token");
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const authApi = {

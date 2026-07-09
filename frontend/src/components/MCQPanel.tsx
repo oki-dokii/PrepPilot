@@ -19,12 +19,14 @@ export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabl
     initialData && initialData.correct_option ? { is_correct: initialData.is_correct, correct_option: initialData.correct_option } : null
   );
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const entries = Object.entries(options);
 
   const handleSelect = async (key: string) => {
     if (disabled || submitting) return;
     setSelected(key);
+    setSubmitError("");
     setSubmitting(true);
     try {
       const { submissionsApi } = await import("@/lib/api");
@@ -34,7 +36,8 @@ export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabl
       }
       onAnswer(mcqId, key);
     } catch {
-      setSelected(null);
+      // Don't clear selection — keep it visible so user knows what they chose
+      setSubmitError("Couldn't save your answer. Tap again to retry.");
     } finally {
       setSubmitting(false);
     }
@@ -120,6 +123,13 @@ export function MCQPanel({ mcqId, question, options, sessionId, onAnswer, disabl
           );
         })}
       </div>
+
+      {/* Submission error */}
+      {submitError && (
+        <div className="mt-3 text-[12px] font-mono text-rust border border-rust/30 bg-rust/5 px-3 py-2">
+          ⚠ {submitError}
+        </div>
+      )}
 
       {/* Result feedback (only shown after answering and if session is disabled/submitted) */}
       {result && disabled && (
