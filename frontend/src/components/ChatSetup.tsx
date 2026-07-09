@@ -10,13 +10,12 @@ type Message = { role: "user" | "assistant"; content: string };
 interface ChatSetupProps {
   onTestReady: (sessionId: string) => void;
   onCancel: () => void;
-  onCohortReady?: (inviteCode: string) => void;
   onScheduleReady?: (testId: string, duration: number) => void;
   weakTopics?: { label: string; id: string; mastery: number }[];
   initialMessage?: string;
 }
 
-export default function ChatSetup({ onTestReady, onCancel, onCohortReady, onScheduleReady, weakTopics, initialMessage }: ChatSetupProps) {
+export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weakTopics, initialMessage }: ChatSetupProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -96,27 +95,6 @@ export default function ChatSetup({ onTestReady, onCancel, onCohortReady, onSche
     }
   };
 
-  const handleHostCohort = async () => {
-    if (!proposedBlueprint || !onCohortReady) return;
-    setGeneratingTest(true);
-    try {
-      const genRes = await api.post("/api/tests/generate", {
-         topic: "Custom Assessment",
-         difficulty: proposedBlueprint.difficulty || "medium",
-         blueprint: proposedBlueprint.blueprint,
-         duration_minutes: proposedBlueprint.duration_minutes || 90
-      });
-      
-      const testId = genRes.data.id;
-      const { cohortsApi } = await import("@/lib/api");
-      const cohortRes = await cohortsApi.create(testId, "Mock OA " + new Date().toLocaleDateString());
-      onCohortReady(cohortRes.data.invite_code);
-    } catch (err) {
-      console.error(err);
-      setGeneratingTest(false);
-      alert("Failed to host cohort. Please try again.");
-    }
-  };
 
   const handleScheduleEvent = async () => {
     if (!proposedBlueprint || !onScheduleReady) return;
@@ -195,7 +173,18 @@ export default function ChatSetup({ onTestReady, onCancel, onCohortReady, onSche
                 <div className="mt-4 p-4 border border-border bg-background/60">
                   <div className="flex items-baseline justify-between mb-3 border-b border-border pb-2">
                     <span className="font-display text-[14px] text-foreground font-semibold">TEST BLUEPRINT</span>
-                    <span className="font-mono text-[10.5px] text-foreground/60">{proposedBlueprint.duration_minutes} MINS</span>
+                    <div className="flex items-center gap-2">
+                      {proposedBlueprint.pattern_source === "verified" ? (
+                        <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 border border-blueprint text-blueprint bg-blueprint/10 uppercase" title="Grounded in verified OA patterns">
+                          Verified {proposedBlueprint.pattern_company} Pattern
+                        </span>
+                      ) : (
+                        <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 border border-border text-foreground/50 bg-foreground/5 uppercase" title="Using a general format (no verified data)">
+                          Generic Format
+                        </span>
+                      )}
+                      <span className="font-mono text-[10.5px] text-foreground/60">{proposedBlueprint.duration_minutes} MINS</span>
+                    </div>
                   </div>
                   <ul className="space-y-2 mb-4 font-mono text-[12px] text-foreground/80">
                     {Array.isArray(proposedBlueprint.blueprint) && proposedBlueprint.blueprint.map((item: any, idx: number) => (
@@ -224,14 +213,7 @@ export default function ChatSetup({ onTestReady, onCancel, onCohortReady, onSche
                           >
                             Start Solo Test
                           </button>
-                          {onCohortReady && (
-                            <button 
-                              onClick={handleHostCohort}
-                              className="flex-1 py-2 bg-rust hover:bg-rust/90 text-chalk text-[13px] font-medium transition cursor-pointer"
-                            >
-                              Host Cohort OA
-                            </button>
-                          )}
+
                         </>
                       )}
                     </div>

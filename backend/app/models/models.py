@@ -224,8 +224,27 @@ class Report(Base):
     session = relationship("Session", back_populates="report")
 
 
+class OAPattern(Base):
+    __tablename__ = "oa_patterns"
 
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    company = Column(String(255), nullable=False, index=True)
+    role = Column(String(255))
+    level = Column(String(50))
+    mcq_count = Column(Integer, default=0)
+    coding_count = Column(Integer, nullable=False)
+    duration_minutes = Column(Integer, nullable=False)
+    topic_distribution = Column(JSON)
+    difficulty_mix = Column(JSON)
+    is_sectioned = Column(Boolean, default=False)
+    source_urls = Column(ARRAY(String), default=[])
+    confidence = Column(String(20), default="low")
+    reviewed = Column(Boolean, default=False)
+    last_updated = Column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (
+        UniqueConstraint('company', 'role', 'level', name='uq_oa_pattern_company_role_level'),
+    )
 
 
 class ScheduledEvent(Base):

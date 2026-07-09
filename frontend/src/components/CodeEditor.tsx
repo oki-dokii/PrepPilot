@@ -21,7 +21,7 @@ interface CodeEditorProps {
   problemId: string;
   sessionId: string;
   disabled: boolean;
-  initialData?: { code: string; language: string; verdict: string };
+  initialData?: { code: string; language: string; verdict?: string };
   onChange?: (code: string, language: string) => void;
   onSubmit?: (result: SubmissionResult) => void;
 }
@@ -99,7 +99,7 @@ export function CodeEditor({ problemId, sessionId, disabled, initialData, onChan
   const [code, setCode] = useState(initialData?.code || STARTERS[initialData?.language || "python3"]);
   const [submitType, setSubmitType] = useState<"run" | "submit" | null>(null);
   const [result, setResult] = useState<SubmissionResult | null>(
-    initialData ? {
+    initialData?.verdict ? {
       verdict: initialData.verdict,
       runtime_ms: null,
       passed_hidden_count: 0,

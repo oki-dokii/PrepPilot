@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Gemini
     GEMINI_API_KEY: str = ""
 
+    # Groq
+    GROQ_API_KEY: str = ""
+
     # Judge0
     JUDGE0_URL: str = "https://judge0-ce.p.rapidapi.com"
     JUDGE0_API_KEY: str = ""

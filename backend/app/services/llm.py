@@ -207,21 +207,43 @@ STUB_PROBLEMS = {
 }
 
 
-# ─── Gemini client ────────────────────────────────────────────────────────────
+# ─── LLM client ────────────────────────────────────────────────────────────
 
-async def _call_gemini(prompt: str) -> str:
-    """Call Gemini API and return the text response."""
-    import google.generativeai as genai
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        model_name="gemini-flash-lite-latest",
-        generation_config={
-            "temperature": 0.7,
-            "response_mime_type": "application/json",
-        },
-    )
-    response = model.generate_content(prompt)
-    return response.text
+async def _call_llm(prompt: str, is_json: bool = True) -> str:
+    """Call Groq or Gemini API and return the text response."""
+    if settings.GROQ_API_KEY:
+        from groq import AsyncGroq
+        try:
+            client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+            kwargs = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.7,
+            }
+            if is_json:
+                kwargs["response_format"] = {"type": "json_object"}
+                
+            chat_completion = await client.chat.completions.create(**kwargs)
+            return chat_completion.choices[0].message.content
+        except Exception as e:
+            logger.warning(f"Groq API failed: {e}. Falling back to Gemini...")
+            if not settings.GEMINI_API_KEY:
+                raise e
+
+    if settings.GEMINI_API_KEY:
+        import google.generativeai as genai
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel(
+            model_name="gemini-flash-lite-latest",
+            generation_config={
+                "temperature": 0.7,
+                "response_mime_type": "application/json" if is_json else "text/plain",
+            },
+        )
+        response = model.generate_content(prompt)
+        return response.text
+    
+    raise ValueError("No API key available for LLM generation")
 
 
 async def _generate_mcqs_with_gemini(topic: str, difficulty: str, count: int, style: str | None) -> list[dict]:
@@ -231,6 +253,7 @@ async def _generate_mcqs_with_gemini(topic: str, difficulty: str, count: int, st
 Return a JSON array (no markdown fences) of objects with this exact schema:
 [
   {{
+    "_thought_process": "1-2 sentences of reasoning about the core concept and how to create a tricky, non-obvious scenario.",
     "question": "string",
     "options": {{"A": "string", "B": "string", "C": "string", "D": "string"}},
     "correct_option": "A",
@@ -244,7 +267,7 @@ Requirements:
 - Difficulty {difficulty}: {"basic concept recall" if difficulty == "easy" else "deep trade-offs and edge cases" if difficulty == "hard" else "applied problem-solving"}
 - Focus on: time complexity, algorithm design, data structure selection, edge cases"""
 
-    raw = await _call_gemini(prompt)
+    raw = await _call_llm(prompt)
     return json.loads(raw)
 
 
@@ -252,15 +275,18 @@ async def _generate_problem_with_gemini(topic: str, difficulty: str, style: str 
     style_hint = f" inspired by {style} OA style" if style else ""
     prompt = f"""Create a coding problem about {topic}{style_hint} at {difficulty} difficulty for a coding interview prep platform.
 
-IMPORTANT: Use a NOVEL real-world scenario (drone networks, satellite telemetry, genomics, logistics routing, financial systems). Do NOT use LeetCode problem names verbatim.
-
+IMPORTANT: You MUST invent a highly-detailed NOVEL real-world scenario (e.g., autonomous vehicle routing, satellite telemetry, genomics pipeline, logistics optimization, financial clearing). Do NOT use LeetCode problem names verbatim. 
+The `title` MUST reflect this scenario (e.g., "Logistics Fleet Routing" instead of "Shortest Path in Graph"). 
+The `statement` MUST NEVER sound like a generic algorithm puzzle (do not use "Given an array of integers"). Wrap the core algorithmic challenge completely inside the business logic or engineering context.
 RULES:
 1. Return ONLY a valid JSON object. No markdown fences.
 2. ALL newlines inside string values MUST be escaped as \\n.
 3. Make sure all problem conditions are mathematically rigorous and unambiguous. Never leave key constraints open to interpretation.
 4. The statement MUST include a clear 'Input Format', 'Output Format', and AT LEAST 2 sample examples with step-by-step logical explanations.
+5. You MUST include a `_thought_process` field first to brainstorm the scenario, constraints, and tricky edge cases before writing the problem.
 
 {{
+  "_thought_process": "string (brainstorming the scenario, constraints, and tricky edge cases)",
   "title": "string",
   "statement": "string (markdown with Input/Output format, and at least 2 Examples with step-by-step explanations)",
   "constraints": "string (markdown bullet list)",
@@ -296,7 +322,7 @@ TEST CASE REQUIREMENTS — MUST have AT LEAST 12 cases covering ALL categories:
 6. random (2+, is_hidden: true) — General random coverage"""
 
 
-    raw = await _call_gemini(prompt)
+    raw = await _call_llm(prompt)
     return json.loads(raw)
 
 
@@ -335,7 +361,9 @@ Coding Problems to generate ({len(coding_items)} total):
 ═══ GENERAL RULES ═══
 - Every question must be UNIQUE. Do NOT use classic textbook questions ("What is memoization?", "What is a pointer?", etc.)
 - For MCQs: test APPLIED understanding — scenario-based, trade-off analysis, subtle edge cases. Never simple definitions.
-- For Coding Problems: invent a NOVEL real-world scenario (autonomous vehicles, satellite telemetry, genomics pipeline, logistics routing, financial clearing, etc.). Do NOT use LeetCode problem names verbatim.
+- For Coding Problems: You MUST invent a highly-detailed NOVEL real-world scenario (e.g., autonomous vehicles, satellite telemetry, genomics pipeline, logistics routing, financial clearing). 
+- For Coding Problems: The `title` MUST reflect the scenario (e.g., 'Logistics Fleet Routing' instead of 'Shortest Path in Graph'). 
+- For Coding Problems: The `statement` MUST NEVER sound like a generic algorithm puzzle (do not use "Given an array of integers"). Wrap the core algorithm completely in the business logic or engineering context.
 - For Coding Problems: Make sure all problem conditions are mathematically rigorous and unambiguous. Never leave key constraints open to interpretation. The statement MUST include a clear 'Input Format', 'Output Format', and AT LEAST 2 sample examples with step-by-step logical explanations.
 - ALL string values must escape newlines as \\n. No raw multiline strings.
 - Return ONLY valid JSON. No markdown fences.
@@ -371,10 +399,12 @@ Each coding problem MUST have AT LEAST 12 test cases total, covering ALL of the 
 6. random (2+ cases, is_hidden: true)
    — General random inputs for coverage.
 
-Return a single JSON object:
+Return a single JSON object (with a `_thought_process` field first to brainstorm the scenarios):
 {{
+  "_thought_process": "string (detailed reasoning and brainstorming of novel scenarios for the coding problems and tricky concepts for MCQs)",
   "mcqs": [
     {{
+      "_thought_process": "string (brief reasoning for this specific question)",
       "question": "string",
       "options": {{"A": "string", "B": "string", "C": "string", "D": "string"}},
       "correct_option": "A|B|C|D",
@@ -385,6 +415,7 @@ Return a single JSON object:
   ],
   "problems": [
     {{
+      "_thought_process": "string (brainstorming the specific real-world scenario, the constraints, and the core algorithmic trap)",
       "title": "string",
       "statement": "string (markdown with Input/Output format, and at least 2 Examples with explanations, newlines as \\\\n)",
       "constraints": "string (bullet list, newlines as \\\\n)",
@@ -405,25 +436,12 @@ Return a single JSON object:
   ]
 }}"""
 
-    model = genai.GenerativeModel(
-        model_name="gemini-flash-lite-latest",
-        generation_config={"temperature": 0.85, "response_mime_type": "application/json"},
-    )
-    response = model.generate_content(prompt)
-    text = response.text.strip()
-    # Strip markdown fences if present
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
-    return json.loads(text)
+    raw = await _call_llm(prompt)
+    return json.loads(raw)
 
 
 async def fix_generated_problem_with_gemini(problem_data: dict, error_message: str) -> dict:
-    """Ask Gemini to fix a generated problem that failed its own self-validation."""
-    import google.generativeai as genai
-    genai.configure(api_key=settings.GEMINI_API_KEY)
+    """Ask the LLM to fix a generated problem that failed its own self-validation."""
     
     prompt = f"""You previously generated a coding problem, but the official solution failed against the test cases when run in a Python 3 sandbox.
 
@@ -436,19 +454,8 @@ Execution Error / Output:
 Please fix the problem. You can either fix the `official_solution` code (if there is a bug), or fix the `test_cases` (if the expected output is incorrect or invalid).
 Return the fixed problem as a JSON object matching the EXACT original schema (no markdown fences, make sure to escape newlines as \\n in strings)."""
 
-    model = genai.GenerativeModel(
-        model_name="gemini-flash-lite-latest",
-        generation_config={"temperature": 0.4, "response_mime_type": "application/json"},
-    )
-    response = model.generate_content(prompt)
-    text = response.text.strip()
-    # Strip markdown fences if present
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
-    return json.loads(text)
+    raw = await _call_llm(prompt)
+    return json.loads(raw)
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────
@@ -544,7 +551,7 @@ Return a JSON object (no markdown fences) matching this exact format:
     }}
   ]
 }}"""
-        raw = await _call_gemini(prompt)
+        raw = await _call_llm(prompt)
         return json.loads(raw)
     except Exception as e:
         logger.warning(f"Gemini feedback failed: {e}")
@@ -562,7 +569,10 @@ def _coerce_difficulty(d: str) -> DifficultyEnum:
 
 def _get_stub_mcqs(topic: str, count: int) -> list[dict]:
     pool = STUB_MCQS.get(topic) or random.choice(list(STUB_MCQS.values()))
-    return pool[:count]
+    # Return random items to avoid repeating the exact same fallback
+    if count >= len(pool):
+        return pool
+    return random.sample(pool, count)
 
 
 def _get_stub_problem(topic: str) -> dict:

@@ -28,27 +28,42 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
     style = spec.get("style")
 
     if not blueprint:
-        # Fallback: old-style 3 MCQ + 2 coding
+        # Fallback: generic generic template (3 MCQ + 2 coding)
         blueprint = [
             {"type": "mcq", "topic": "DSA", "difficulty": "medium"},
-            {"type": "mcq", "topic": "DSA", "difficulty": "medium"},
-            {"type": "mcq", "topic": "DSA", "difficulty": "medium"},
+            {"type": "mcq", "topic": "OS", "difficulty": "medium"},
+            {"type": "mcq", "topic": "DBMS", "difficulty": "medium"},
             {"type": "coding", "topic": "Arrays", "difficulty": "easy"},
             {"type": "coding", "topic": "Graphs", "difficulty": "medium"},
         ]
 
-    # ── Try one single batch Gemini call for the entire test ──────────────────
-    batch_data = None
-    if settings.GEMINI_API_KEY:
+    # ── Try batch LLM calls in chunks to avoid token limits ────────────────
+    batch_data = {"mcqs": [], "problems": []}
+    if settings.GROQ_API_KEY or settings.GEMINI_API_KEY:
         try:
-            batch_data = await generate_full_test_with_gemini(blueprint, style=style)
-            logger.info(f"Batch generation succeeded: {len(batch_data.get('mcqs', []))} MCQs, {len(batch_data.get('problems', []))} problems")
+            import asyncio
+            chunk_size = 5
+            for i in range(0, len(blueprint), chunk_size):
+                chunk = blueprint[i:i + chunk_size]
+                try:
+                    res = await generate_full_test_with_gemini(chunk, style=style)
+                    batch_data["mcqs"].extend(res.get("mcqs", []))
+                    batch_data["problems"].extend(res.get("problems", []))
+                except Exception as e:
+                    logger.warning(f"A batch chunk failed: {e}")
+                
+                # Small delay to respect free tier rate limits for Gemini
+                if i + chunk_size < len(blueprint):
+                    if not settings.GROQ_API_KEY:
+                        await asyncio.sleep(2)
+                    else:
+                        await asyncio.sleep(0.5)
+            logger.info(f"Batch generation complete: {len(batch_data['mcqs'])} MCQs, {len(batch_data['problems'])} problems")
         except Exception as e:
-            logger.warning(f"Batch Gemini generation failed: {e}. Falling back to stubs.")
-            batch_data = None
+            logger.warning(f"Batch Gemini generation failed catastrophically: {e}. Falling back to stubs.")
 
-    mcq_pool = iter(batch_data["mcqs"]) if batch_data and batch_data.get("mcqs") else iter([])
-    problem_pool = iter(batch_data["problems"]) if batch_data and batch_data.get("problems") else iter([])
+    mcq_pool = iter(batch_data["mcqs"])
+    problem_pool = iter(batch_data["problems"])
 
     order = 0
     for item in blueprint:

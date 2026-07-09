@@ -42,18 +42,7 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!inviteCode.trim() || joiningCohort) return;
     setJoiningCohort(true);
-    try {
-      const { cohortsApi } = await import("@/lib/api");
-      const res = await cohortsApi.join(inviteCode.trim().toUpperCase());
-      if (res.data.already_joined) {
-        router.push(`/test/${res.data.session_id}`);
-      } else {
-        router.push(`/cohort/${res.data.invite_code}`); // Go to leaderboard/lobby
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to join cohort");
-      setJoiningCohort(false);
-    }
+    router.push(`/join/${inviteCode.trim()}`);
   };
 
   useEffect(() => {
@@ -199,7 +188,7 @@ export default function DashboardPage() {
               <ChatSetup
                 onTestReady={(sessionId) => router.push(`/test/${sessionId}`)}
                 onCancel={() => setShowNewTest(false)}
-                onCohortReady={(code) => router.push(`/cohort/${code}`)}
+
                 weakTopics={weakTopicsForChat}
               />
             </div>
@@ -298,16 +287,16 @@ export default function DashboardPage() {
               </div>
             </StampCard>
 
-            <StampCard id="COHORT · JOIN" title="Join Cohort OA">
-              <div className="stamp-id mb-2 text-foreground/60">HAVE AN INVITE CODE?</div>
+            <StampCard id="EVENT · JOIN" title="Join Scheduled Event">
+              <div className="stamp-id mb-2 text-foreground/60">HAVE AN EVENT SLUG?</div>
               <form onSubmit={handleJoinCohort} className="flex gap-2">
                 <input
                   type="text"
                   placeholder="PP-X7K2..."
                   value={inviteCode}
-                  onChange={e => setInviteCode(e.target.value.toUpperCase())}
+                  onChange={e => setInviteCode(e.target.value)}
                   disabled={joiningCohort}
-                  className="flex-1 bg-background/50 border border-border px-3 text-[13px] font-mono focus:border-blueprint outline-none uppercase"
+                  className="flex-1 bg-background/50 border border-border px-3 text-[13px] font-mono focus:border-blueprint outline-none"
                 />
                 <button
                   type="submit"

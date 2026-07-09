@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import Navbar from "@/components/Navbar";
+import { LayoutWrapper } from "@/components/LayoutWrapper";
 import ChatSetup from "@/components/ChatSetup";
 import { eventsApi } from "@/lib/api";
 import { Calendar, Users, Clock, Copy, CheckCircle2, ArrowRight } from "lucide-react";
@@ -63,10 +63,8 @@ export default function ScheduleNewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col font-sans">
-      <Navbar />
-
-      <main className="flex-1 max-w-4xl w-full mx-auto p-6 md:p-12 flex flex-col">
+    <LayoutWrapper>
+      <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col">
         <div className="mb-8">
           <h1 className="text-3xl font-display font-bold text-foreground">Schedule a Mock OA</h1>
           <p className="text-foreground/60 mt-2">Generate an assessment once, then invite candidates to take it simultaneously.</p>
@@ -223,7 +221,7 @@ export default function ScheduleNewPage() {
             </Link>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </LayoutWrapper>
   );
 }
