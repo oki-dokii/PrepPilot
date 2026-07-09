@@ -23,7 +23,7 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground bg-grid flex flex-col">
-      <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-20">
+      <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-20 print:hidden">
         <div className="mx-auto max-w-[1240px] px-6 h-14 flex items-center gap-8">
           <Link href="/dashboard" className="flex items-center gap-2">
             <LogoMark />
@@ -73,7 +73,7 @@ export function LayoutWrapper({ children }: { children: ReactNode }) {
       
       <main className="mx-auto max-w-[1240px] px-6 py-10 flex-1 w-full">{children}</main>
       
-      <footer className="border-t border-border mt-16 bg-background/40">
+      <footer className="border-t border-border mt-16 bg-background/40 print:hidden">
         <div className="mx-auto max-w-[1240px] px-6 h-14 flex items-center justify-between stamp-id">
           <span>PREPPILOT · BLUEPRINT EDITION</span>
           <span>SHEET 01 / 01</span>

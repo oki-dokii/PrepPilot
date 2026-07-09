@@ -7,7 +7,7 @@ import { reportsApi } from "@/lib/api";
 import Link from "next/link";
 import { LayoutWrapper, StampCard } from "@/components/LayoutWrapper";
 import { MasteryGraph, DEFAULT_NODES } from "@/components/MasteryGraph";
-import { Loader2, Brain, ArrowRight, AlertTriangle } from "lucide-react";
+import { Loader2, Brain, ArrowRight, AlertTriangle, Printer } from "lucide-react";
 
 interface QuestionFeedback {
   question_type: "mcq" | "coding";
@@ -134,7 +134,16 @@ export default function ReportPage() {
 
   return (
     <LayoutWrapper>
-      <div className="stamp-id mb-2">{shortId} · REPORT · {date}</div>
+      <div className="flex justify-between items-center mb-2">
+        <div className="stamp-id">{shortId} · REPORT · {date}</div>
+        <button 
+          onClick={() => window.print()} 
+          className="print:hidden stamp-id flex items-center gap-1.5 border border-border px-3 py-1 bg-background hover:bg-foreground/5 transition-colors cursor-pointer"
+        >
+          <Printer size={13} />
+          <span>DOWNLOAD PDF</span>
+        </button>
+      </div>
       
       {/* Hero Overview Row */}
       <div className="grid lg:grid-cols-[1fr_1.15fr] gap-8 mb-10 items-center">

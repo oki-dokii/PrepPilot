@@ -63,6 +63,9 @@ export const testsApi = {
   generate: (topic: string, difficulty: string, style?: string) =>
     api.post("/api/tests/generate", { topic, difficulty, style }),
 
+  createManual: (title: string, duration_minutes: number, questions: { type: string, id: string }[]) =>
+    api.post("/api/tests/manual", { title, duration_minutes, questions }),
+
   get: (testId: string) => api.get(`/api/tests/${testId}`),
 };
 
@@ -132,6 +135,12 @@ export const eventsApi = {
 };
 
 export const leaderboardApi = {
-  getGlobal: () =>
-    api.get("/api/leaderboard"),
+  getGlobal: () => api.get("/api/leaderboard"),
+};
+
+// ─── Library ──────────────────────────────────────────────────────────────────
+
+export const libraryApi = {
+  getProblems: () => api.get("/api/library/problems"),
+  getMCQs: () => api.get("/api/library/mcqs"),
 };

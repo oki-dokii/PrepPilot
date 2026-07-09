@@ -19,6 +19,16 @@ class TestSpec(BaseModel):
     blueprint: Optional[list] = None
 
 
+class ManualTestQuestion(BaseModel):
+    type: str # "mcq" or "coding"
+    id: str
+
+class ManualTestSpec(BaseModel):
+    title: str = "Custom Manual Test"
+    duration_minutes: int = 90
+    questions: list[ManualTestQuestion]
+
+
 class TestResponse(BaseModel):
     id: str
     spec: dict
@@ -69,6 +79,60 @@ async def generate_test(
         duration_minutes=test.duration_minutes,
         question_count=question_count,
     )
+
+
+@router.post("/manual", response_model=TestResponse)
+async def create_manual_test(
+    spec: ManualTestSpec,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Instantly create a test from existing MCQs and Problems."""
+    if not spec.questions:
+        raise HTTPException(status_code=400, detail="Must provide at least one question.")
+    
+    # Verify all questions exist before creating test
+    for q in spec.questions:
+        if q.type == "mcq":
+            res = await db.execute(select(MCQ.id).where(MCQ.id == q.id))
+            if not res.scalar_one_or_none():
+                raise HTTPException(status_code=404, detail=f"MCQ {q.id} not found")
+        elif q.type == "coding":
+            res = await db.execute(select(Problem.id).where(Problem.id == q.id))
+            if not res.scalar_one_or_none():
+                raise HTTPException(status_code=404, detail=f"Problem {q.id} not found")
+        else:
+            raise HTTPException(status_code=400, detail="Question type must be 'mcq' or 'coding'")
+
+    # Create the Test record
+    test = Test(
+        user_id=current_user.id,
+        spec={"topic": spec.title, "difficulty": "mixed", "style": "Manual"},
+        duration_minutes=spec.duration_minutes,
+    )
+    db.add(test)
+    await db.flush()
+
+    # Link questions
+    for idx, q in enumerate(spec.questions):
+        tq = TestQuestion(
+            test_id=test.id,
+            order=idx,
+            question_type=q.type,
+            mcq_id=q.id if q.type == "mcq" else None,
+            problem_id=q.id if q.type == "coding" else None
+        )
+        db.add(tq)
+    
+    await db.commit()
+    
+    return TestResponse(
+        id=test.id,
+        spec=test.spec,
+        duration_minutes=test.duration_minutes,
+        question_count=len(spec.questions),
+    )
+
 
 
 @router.get("/{test_id}", response_model=TestResponse)
