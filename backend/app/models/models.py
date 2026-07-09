@@ -55,6 +55,7 @@ class User(Base):
     target_role = Column(String(255))
     target_company = Column(String(255))
     exam_date = Column(DateTime(timezone=True))
+    is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     tests = relationship("Test", back_populates="user")
@@ -77,6 +78,13 @@ class Problem(Base):
     memory_limit_mb = Column(Integer, default=256)
     official_solution = Column(Text)               # code string
     brute_force_solution = Column(Text)
+    starter_code = Column(Text, nullable=True)     # Legacy: For LeetCode style UI
+    driver_code = Column(Text, nullable=True)      # Legacy: Hidden execution boilerplate
+    starter_code_dict = Column(JSON, nullable=True) # {"python3": "...", "cpp": "..."}
+    driver_code_dict = Column(JSON, nullable=True)  # {"python3": "...", "cpp": "..."}
+    input_schema = Column(JSON, nullable=True)      # [{"name": "N", "type": "int"}, ...]
+    output_type = Column(String(255), nullable=True) # "int", "list<int>", etc.
+    problem_style = Column(String(20), default="standard", server_default="standard") # 'leetcode' | 'standard'
     validated_at = Column(DateTime(timezone=True)) # null = not yet validated
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

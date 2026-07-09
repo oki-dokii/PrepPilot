@@ -26,6 +26,7 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
   const [loading, setLoading] = useState(false);
   const [generatingTest, setGeneratingTest] = useState(false);
   const [proposedBlueprint, setProposedBlueprint] = useState<any>(null);
+  const [problemStyle, setProblemStyle] = useState<"standard" | "leetcode">("standard");
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
       const genRes = await api.post("/api/tests/generate", {
          topic: "Custom Assessment",
          difficulty: proposedBlueprint.difficulty || "medium",
+         style: problemStyle,
          blueprint: proposedBlueprint.blueprint,
          duration_minutes: proposedBlueprint.duration_minutes || 90
       });
@@ -103,6 +105,7 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
       const genRes = await api.post("/api/tests/generate", {
          topic: "Scheduled Assessment",
          difficulty: proposedBlueprint.difficulty || "medium",
+         style: problemStyle,
          blueprint: proposedBlueprint.blueprint,
          duration_minutes: proposedBlueprint.duration_minutes || 90
       });
@@ -196,7 +199,25 @@ export default function ChatSetup({ onTestReady, onCancel, onScheduleReady, weak
                     ))}
                   </ul>
                   
-                  <div className="flex flex-col gap-2 pt-3 border-t border-border">
+                  <div className="mb-4 pt-3 border-t border-border flex items-center justify-between">
+                    <span className="text-[13px] text-foreground/80 font-medium">Problem Style:</span>
+                    <div className="flex bg-background/50 border border-border p-0.5">
+                      <button
+                        onClick={() => setProblemStyle("standard")}
+                        className={`px-3 py-1 text-[12px] font-mono transition-colors ${problemStyle === "standard" ? "bg-blueprint text-chalk font-bold" : "text-foreground/60 hover:text-foreground"}`}
+                      >
+                        STDIN (Codeforces)
+                      </button>
+                      <button
+                        onClick={() => setProblemStyle("leetcode")}
+                        className={`px-3 py-1 text-[12px] font-mono transition-colors ${problemStyle === "leetcode" ? "bg-blueprint text-chalk font-bold" : "text-foreground/60 hover:text-foreground"}`}
+                      >
+                        CLASS (LeetCode)
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2 border-t border-border pt-4">
                     <div className="flex gap-2">
                       {onScheduleReady ? (
                         <button 

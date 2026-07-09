@@ -99,15 +99,15 @@
 }
 
 .dark {
-  /* Live Test Mode surface */
-  --background: #1B1E23;
+  /* HackerRank style test interface */
+  --background: #0E141E;
   --foreground: #ECEAE4;
-  --card: #1B1E23;
+  --card: #17202A;
   --card-foreground: #ECEAE4;
-  --popover: #1B1E23;
+  --popover: #17202A;
   --popover-foreground: #ECEAE4;
-  --primary: #ECEAE4;
-  --primary-foreground: #12141A;
+  --primary: #1BA94C;
+  --primary-foreground: #FFFFFF;
   --secondary: rgba(236, 234, 228, 0.06);
   --secondary-foreground: #ECEAE4;
   --muted: rgba(236, 234, 228, 0.04);
@@ -118,7 +118,7 @@
   --destructive-foreground: #ECEAE4;
   --border: rgba(236, 234, 228, 0.14);
   --input: rgba(236, 234, 228, 0.2);
-  --ring: rgba(236, 234, 228, 0.4);
+  --ring: #1BA94C;
   --line: rgba(236, 234, 228, 0.14);
   --muted-ink: rgba(236, 234, 228, 0.62);
 }

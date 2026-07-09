@@ -14,7 +14,9 @@ async def review_oa_pattern(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # In a real app we'd verify current_user.is_admin, but we skip for this proof of concept.
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized. Admin access required.")
+        
     query = select(OAPattern).where(OAPattern.id == pattern_id)
     result = await db.execute(query)
     pattern = result.scalars().first()

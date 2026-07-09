@@ -67,13 +67,14 @@ export const sessionsApi = {
 // ─── Submissions ──────────────────────────────────────────────────────────────
 
 export const submissionsApi = {
-  submitCode: (sessionId: string, problemId: string, code: string, language: string, is_run: boolean = false) =>
+  submitCode: (sessionId: string, problemId: string, code: string, language: string, is_run: boolean = false, customInput?: string) =>
     api.post("/api/submissions/code", {
       session_id: sessionId,
       problem_id: problemId,
       code,
       language,
       is_run,
+      ...(customInput !== undefined && { custom_input: customInput }),
     }),
 
   submitMcq: (sessionId: string, mcqId: string, chosenOption: string) =>

@@ -5,6 +5,8 @@ Falls back to rich stubs when GEMINI_API_KEY is not configured.
 import json
 import random
 import logging
+import re
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.models import MCQ, Problem, DifficultyEnum, TestCase
 from app.core.config import settings
@@ -248,6 +250,7 @@ async def _call_llm(prompt: str, is_json: bool = True) -> str:
 
 async def _generate_mcqs_with_gemini(topic: str, difficulty: str, count: int, style: str | None) -> list[dict]:
     style_hint = f" in the style of {style} interviews" if style else ""
+
     prompt = f"""Generate {count} multiple-choice questions about {topic}{style_hint} at {difficulty} difficulty for a coding interview prep platform.
 
 Return a JSON array (no markdown fences) of objects with this exact schema:
@@ -293,6 +296,8 @@ RULES:
   "sample_input": "string",
   "sample_output": "string",
   "official_solution": "string (python3 code that correctly solves the problem)",
+  "starter_code": {"python3": "string", "cpp": "string", "java": "string", "javascript": "string"},
+  "driver_code": {"python3": "string", "cpp": "string", "java": "string", "javascript": "string"},
   "difficulty": "{difficulty}",
   "topic_tags": ["string"],
   "test_cases": [
@@ -335,7 +340,13 @@ async def generate_full_test_with_gemini(blueprint: list, style: str | None = No
     import google.generativeai as genai
     genai.configure(api_key=settings.GEMINI_API_KEY)
 
-    style_hint = f" in the style of {style} technical interviews" if style else ""
+    style_hint = ""
+    if style == "leetcode":
+        style_hint = " You MUST use the 'leetcode' coding interview style (user writes a class/function, you write the driver code). Set problem_style='leetcode'."
+    elif style == "standard":
+        style_hint = " You MUST use the 'standard' Codeforces/HackerRank style (user reads from stdin, prints to stdout). Set problem_style='standard'."
+    else:
+        style_hint = " You MUST use the 'standard' Codeforces/HackerRank style (read from stdin, print to stdout)."
 
     mcq_items = [i for i in blueprint if i.get("type") == "mcq"]
     coding_items = [i for i in blueprint if i.get("type") == "coding"]
@@ -368,6 +379,43 @@ Coding Problems to generate ({len(coding_items)} total):
 - ALL string values must escape newlines as \\n. No raw multiline strings.
 - Return ONLY valid JSON. No markdown fences.
 
+═══ INPUT SCHEMA TYPE GUIDE (STANDARD STYLE) ═══
+The boilerplate generator will produce parsers for ALL these types. Use the right type to produce correct problems:
+
+  PRIMITIVES (read as single token from stdin):
+    int, long     → integer (use long for values > 2^31 or involving large products)
+    float, double → decimal number
+    bool          → "true"/"false" token
+    char          → single character token
+    string        → single whitespace-delimited token
+
+  1-D ARRAYS (stdin: N followed by N elements):
+    list<int>, list<long>, list<float>, list<double>, list<string>, list<bool>
+
+  2-D ARRAYS / GRIDS / MATRICES (stdin: R followed by R rows each with C then C elements):
+    list<list<int>>, list<list<long>>, list<list<float>>, list<list<string>>
+    Use for: adjacency matrices, grids, graphs as edge lists, DP tables.
+
+  PAIRS (stdin: first second as two consecutive tokens):
+    pair<int,int>, pair<long,long>, pair<int,string>
+    Use for: weighted edges, coordinate pairs, (key,value) inputs.
+
+  MULTI-TEST-CASE (stdin: T followed by T repetitions of the rest):
+    Use {"name": "T", "type": "testcases"} as the FIRST schema item.
+    The remaining schema items describe ONE test-case block (repeated T times).
+    Use for: classic competitive programming problems with multiple test cases.
+
+  COMMON DSA PATTERNS:
+    - Graph (N nodes, M edges, edge list): n:int, m:int, edges:list<list<int>>  (each sub-list [u,v] or [u,v,w])
+    - Tree (N nodes, parent array): n:int, parent:list<int>
+    - Strings: s:string  (single token; if multiple words, use list<string> + join in code)
+    - Binary search: n:int, arr:list<int>, target:int
+    - DP on matrix: n:int, m:int, grid:list<list<int>>
+    - Interval scheduling: n:int, intervals:list<list<int>>  (each [start,end])
+
+  FOR LEETCODE STYLE: input_schema is only informational metadata.
+    The driver_code handles all deserialization (TreeNode, ListNode, etc.).
+
 ═══ TEST CASE REQUIREMENTS (CRITICAL) ═══
 Each coding problem MUST have AT LEAST 12 test cases total, covering ALL of the following categories:
 
@@ -377,27 +425,7 @@ Each coding problem MUST have AT LEAST 12 test cases total, covering ALL of the 
 2. boundary (3 cases, is_hidden: true)
    — Empty/null input, single element, minimum/maximum constraint values (n=1, n=max).
 
-3. structural (3 cases, is_hidden: true)
-   — Problem-specific structural edge cases:
-     * For graph problems: disconnected graph, fully connected, self-loops, single node.
-     * For array problems: all identical elements, already sorted, reverse sorted, all negatives.
-     * For tree problems: single node, linear chain (degenerate tree), perfectly balanced.
-     * For string problems: all same characters, empty string, palindrome, single character.
-
-4. adversarial (2 cases, is_hidden: true)
-   — Specifically designed to break the MOST COMMON WRONG APPROACH:
-     * Brute-force O(n²) / O(n³) solutions that TLE on large n
-     * Greedy approaches that fail on specific orderings
-     * Off-by-one errors (fencepost, inclusive/exclusive ranges)
-     * Integer overflow with large numbers
-
-5. performance (1 case, is_hidden: true)
-   — n at or near maximum constraint (e.g. n=10^5 or n=10^6).
-     Input large enough that an O(n²) solution will TLE but O(n log n) passes.
-     Use a compact representation (e.g. "100000" not a literal array of 100000 items).
-
-6. random (2+ cases, is_hidden: true)
-   — General random inputs for coverage.
+3. The coding problems MUST have EXACTLY 2 test cases. These will be the visible sample cases (is_hidden: false). Do NOT generate any hidden test cases here. They will be generated in a separate pass.
 
 Return a single JSON object (with a `_thought_process` field first to brainstorm the scenarios):
 {{
@@ -419,16 +447,36 @@ Return a single JSON object (with a `_thought_process` field first to brainstorm
       "title": "string",
       "statement": "string (markdown with Input/Output format, and at least 2 Examples with explanations, newlines as \\\\n)",
       "constraints": "string (bullet list, newlines as \\\\n)",
-      "sample_input": "string",
+      "sample_input": "string (MUST be a valid JSON dictionary mapping schema names to values, e.g. {{ \"N\": 5 }})",
       "sample_output": "string",
-      "official_solution": "string (python3 code that correctly solves the problem, newlines as \\\\n)",
+      "problem_style": "standard (REQUIRED unless style override says leetcode)",
+      "input_schema": [
+        {{
+          "name": "string — use meaningful param names (e.g. 'nums', 'n', 'edges', 'T')",
+          "type": "int|long|float|double|bool|char|string|list<int>|list<long>|list<float>|list<string>|list<bool>|list<list<int>>|list<list<long>>|list<list<float>>|list<list<string>>|pair<int,int>|pair<long,long>|pair<int,string>|testcases"
+        }}
+      ],
+      "output_type": "int|long|float|double|bool|string|list<int>|list<long>|list<float>|list<string>|list<list<int>>|list<list<string>>",
+      "starter_code": {{
+        "python3": "string (for leetcode style: class definition. for standard style: a robust parser reading sys.stdin that parses the exact input_schema into variables, then calls a solve function)",
+        "cpp": "string (for leetcode style: class definition. for standard style: a robust parser using std::cin that parses the input_schema into variables, then calls a solve function)",
+        "java": "string (for leetcode style: class definition. for standard style: a robust parser using Scanner that parses the input_schema into variables, then calls a solve function)",
+        "javascript": "string (for leetcode style: class definition. for standard style: a robust parser using fs.readFileSync that parses the input_schema into variables, then calls a solve function)"
+      }},
+      "driver_code": {{
+        "python3": "string (for standard style: empty. for leetcode style: hidden boilerplate python code reading sys.stdin, MUST include 'import sys, json', instantiating class, printing to sys.stdout)",
+        "cpp": "string (for standard style: empty. for leetcode style: hidden boilerplate C++ int main() reading std::cin, instantiating class, printing to std::cout)",
+        "java": "string (for standard style: empty. for leetcode style: hidden boilerplate Java public static void main reading Scanner, instantiating class, printing to System.out)",
+        "javascript": "string (for standard style: empty. for leetcode style: hidden boilerplate JS reading fs.readFileSync(0, 'utf-8'), instantiating class, console.log)"
+      }},
+      "official_solution": "string (for standard style: a COMPLETE python3 script reading sys.stdin and printing sys.stdout. for leetcode style: just the completed class/method definition, our backend will append driver_code automatically.)",
       "difficulty": "easy|medium|hard",
       "topic_tags": ["string"],
       "test_cases": [
         {{
           "input": "string",
           "expected": "string",
-          "category": "sample|boundary|structural|adversarial|performance|random",
+          "category": "sample",
           "is_hidden": false
         }}
       ]
@@ -437,7 +485,101 @@ Return a single JSON object (with a `_thought_process` field first to brainstorm
 }}"""
 
     raw = await _call_llm(prompt)
-    return json.loads(raw)
+    
+    # Clean trailing commas and extract
+    text = raw.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        if len(parts) >= 3:
+            text = parts[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+            
+    text = re.sub(r',\s*}', '}', text)
+    text = re.sub(r',\s*]', ']', text)
+    
+    try:
+        return json.loads(text)
+    except Exception as e:
+        logger.warning(f"Failed to parse LLM JSON despite cleanup: {e}\nRaw output: {raw[:500]}")
+        raise
+
+
+async def generate_hidden_test_cases_with_gemini(problem_dict: dict) -> list:
+    """
+    Second pass to generate exhaustive hidden test cases.
+    """
+    prompt = f"""You are an expert technical interviewer and competitive programming judge.
+We have an algorithmic problem defined below:
+
+Title: {problem_dict.get('title')}
+Style: {problem_dict.get('problem_style', 'standard')}
+Statement: {problem_dict.get('statement')}
+Constraints: {problem_dict.get('constraints')}
+Official Solution:
+{problem_dict.get('official_solution')}
+
+Your task is to generate exactly 10 exhaustive hidden test cases for this problem.
+The test cases MUST adhere strictly to the problem constraints and cover these categories:
+
+1. boundary (2 cases)
+   — Empty array or string (e.g. {"arr": []}), single element, minimum/maximum constraint values (n=1, n=max).
+
+2. structural (3 cases)
+   — Problem-specific structural edge cases:
+     * For graph problems: disconnected graph, fully connected, self-loops, single node.
+     * For array problems: all identical elements, already sorted, reverse sorted, all negatives.
+     * For tree problems: single node, linear chain (degenerate tree), perfectly balanced.
+     * For string problems: all same characters, empty string, palindrome, single character.
+
+3. adversarial (2 cases)
+   — Specifically designed to break the MOST COMMON WRONG APPROACH:
+     * Brute-force O(n²) / O(n³) solutions that TLE on large n
+     * Greedy approaches that fail on specific orderings
+     * Off-by-one errors (fencepost, inclusive/exclusive ranges)
+
+4. performance (1 case)
+   — n at or near maximum constraint (e.g. n=10^5 or n=10^6).
+     Input large enough that an O(n²) solution will TLE but O(n log n) passes.
+
+5. random (2 cases)
+   — General random inputs for coverage.
+
+Return a single JSON object matching this schema EXACTLY:
+{{
+  "test_cases": [
+    {{
+      "input": "string (MUST be a valid JSON dictionary mapping schema names to values, EVEN FOR BOUNDARY CASES. NEVER return empty string.)",
+      "expected": "string",
+      "category": "boundary|structural|adversarial|performance|random",
+      "is_hidden": true
+    }}
+  ]
+}}
+"""
+    raw = await _call_llm(prompt)
+    
+    # Clean trailing commas and extract
+    text = raw.strip()
+    import re
+    text = re.sub(r',\s*}', '}', text)
+    text = re.sub(r',\s*\]', ']', text)
+    
+    if text.startswith("```"):
+        parts = text.split("```")
+        if len(parts) >= 3:
+            text = parts[1]
+            if text.startswith("json"):
+                text = text[4:]
+    
+    import json
+    try:
+        data = json.loads(text.strip())
+        return data.get("test_cases", [])
+    except Exception as e:
+        logger.error(f"Error parsing hidden test cases output: {e}\nRaw output: {raw}")
+        return []
 
 
 async def fix_generated_problem_with_gemini(problem_data: dict, error_message: str) -> dict:
@@ -448,14 +590,31 @@ async def fix_generated_problem_with_gemini(problem_data: dict, error_message: s
 Original Problem Data:
 {json.dumps(problem_data, indent=2)}
 
+Style: {problem_data.get('problem_style', 'standard')}
+
 Execution Error / Output:
 {error_message}
 
 Please fix the problem. You can either fix the `official_solution` code (if there is a bug), or fix the `test_cases` (if the expected output is incorrect or invalid).
+CRITICAL: The `official_solution` MUST be a complete script that reads from `sys.stdin` (or uses `input()`), calls the logic, and prints the result to stdout. A class or function definition alone will produce empty output!
+CRITICAL: Ensure the `test_cases` input format is always a valid JSON string mapping schema names to values.
 Return the fixed problem as a JSON object matching the EXACT original schema (no markdown fences, make sure to escape newlines as \\n in strings)."""
 
     raw = await _call_llm(prompt)
-    return json.loads(raw)
+    
+    text = raw.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        if len(parts) >= 3:
+            text = parts[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+            
+    text = re.sub(r',\s*}', '}', text)
+    text = re.sub(r',\s*]', ']', text)
+    
+    return json.loads(text)
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────
@@ -552,7 +711,18 @@ Return a JSON object (no markdown fences) matching this exact format:
   ]
 }}"""
         raw = await _call_llm(prompt)
-        return json.loads(raw)
+        text = raw.strip()
+        if text.startswith("```"):
+            parts = text.split("```")
+            if len(parts) >= 3:
+                text = parts[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+                
+        text = re.sub(r',\s*}', '}', text)
+        text = re.sub(r',\s*]', ']', text)
+        return json.loads(text)
     except Exception as e:
         logger.warning(f"Gemini feedback failed: {e}")
         return {}

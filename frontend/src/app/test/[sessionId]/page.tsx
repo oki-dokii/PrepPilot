@@ -29,6 +29,8 @@ interface CodingQuestion {
   memory_limit_mb: number;
   topic_tags: string[];
   difficulty: string;
+  problem_style?: string;
+  starter_code?: Record<string, string>;
 }
 
 interface Question {
@@ -356,7 +358,7 @@ export default function TestPage() {
                 </h1>
 
                 <div className="text-[14px] text-chalk/80 leading-relaxed space-y-4 prose-dark">
-                  <ReactMarkdown>{activeQ.coding.statement}</ReactMarkdown>
+                  <ReactMarkdown>{activeQ.coding.statement.replace(/\\n/g, '\n')}</ReactMarkdown>
 
                   <div className="border border-chalk/15 p-4">
                     <div className="stamp-id text-chalk/50 mb-2">CONSTRAINTS</div>
@@ -364,7 +366,7 @@ export default function TestPage() {
                       <li>⏱ Time: {activeQ.coding.time_limit_ms}ms</li>
                       <li>💾 Memory: {activeQ.coding.memory_limit_mb}MB</li>
                       {activeQ.coding.constraints && (
-                        <ReactMarkdown>{activeQ.coding.constraints}</ReactMarkdown>
+                        <ReactMarkdown>{activeQ.coding.constraints.replace(/\\n/g, '\n')}</ReactMarkdown>
                       )}
                     </ul>
                   </div>
@@ -373,7 +375,7 @@ export default function TestPage() {
                     <div className="border border-chalk/15 p-4">
                       <div className="stamp-id text-chalk/50 mb-2">SAMPLE · INPUT</div>
                       <pre className="font-mono text-[12.5px] text-chalk/85 whitespace-pre overflow-x-auto">
-                        {activeQ.coding.sample_input}
+                        {activeQ.coding.sample_input.replace(/\\n/g, '\n')}
                       </pre>
                     </div>
                   )}
@@ -382,7 +384,7 @@ export default function TestPage() {
                     <div className="border border-chalk/15 p-4">
                       <div className="stamp-id text-chalk/50 mb-2">SAMPLE · OUTPUT</div>
                       <pre className="font-mono text-[12.5px] text-chalk/85 whitespace-pre overflow-x-auto">
-                        {activeQ.coding.sample_output}
+                        {activeQ.coding.sample_output.replace(/\\n/g, '\n')}
                       </pre>
                     </div>
                   )}
@@ -414,6 +416,8 @@ export default function TestPage() {
                   problemId={activeQ.coding.id}
                   sessionId={sessionId}
                   disabled={disabled}
+                  starterCode={activeQ.coding.starter_code}
+                  problemStyle={activeQ.coding.problem_style}
                   initialData={localCode[activeQ.coding.id] || session.code_submissions?.[activeQ.coding.id]}
                   onChange={(code, language) => {
                     setLocalCode(prev => ({

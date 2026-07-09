@@ -49,6 +49,8 @@ class CodingQuestionOut(BaseModel):
     memory_limit_mb: int
     topic_tags: List[str]
     difficulty: str
+    problem_style: str
+    starter_code: Optional[dict] = None
 
 class QuestionOut(BaseModel):
     order: int
@@ -108,6 +110,8 @@ def _build_questions_out(questions_db) -> List[QuestionOut]:
                     memory_limit_mb=q.problem.memory_limit_mb,
                     topic_tags=q.problem.topic_tags or [],
                     difficulty=q.problem.difficulty.value,
+                    problem_style=q.problem.problem_style or "standard",
+                    starter_code=q.problem.starter_code_dict or ({"python3": q.problem.starter_code} if q.problem.starter_code else None),
                 ),
             ))
     return questions_out

@@ -47,7 +47,8 @@ Return a JSON object strictly matching this format:
   "duration_minutes": 90,
   "topic_distribution": {{"Graphs": 0.5, "DP": 0.5}},
   "difficulty_mix": {{"medium": 1, "hard": 1}},
-  "is_sectioned": false
+  "is_sectioned": false,
+  "source_urls": ["url1", "url2"] // ONLY include URLs from the search results that provided concrete evidence for these claims.
 }}
 
 Search Results:
@@ -80,7 +81,7 @@ Search Results:
             existing.topic_distribution = data.get("topic_distribution", {})
             existing.difficulty_mix = data.get("difficulty_mix", {})
             existing.is_sectioned = data.get("is_sectioned", False)
-            existing.source_urls = source_urls
+            existing.source_urls = data.get("source_urls", source_urls)
             existing.confidence = "medium"
         else:
             pattern = OAPattern(
@@ -93,7 +94,7 @@ Search Results:
                 topic_distribution=data.get("topic_distribution", {}),
                 difficulty_mix=data.get("difficulty_mix", {}),
                 is_sectioned=data.get("is_sectioned", False),
-                source_urls=source_urls,
+                source_urls=data.get("source_urls", source_urls),
                 confidence="medium",
                 reviewed=False
             )

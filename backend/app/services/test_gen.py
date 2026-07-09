@@ -81,9 +81,9 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
             mcq = MCQ(
                 topic_tags=data.get("topic_tags", [q_topic.lower()]),
                 difficulty=_coerce_difficulty(data.get("difficulty", q_diff)),
-                question=data["question"],
-                options=data["options"],
-                correct_option=data["correct_option"],
+                question=data.get("question", "Question text missing"),
+                options=data.get("options", {"A": "A", "B": "B", "C": "C", "D": "D"}),
+                correct_option=data.get("correct_option", data.get("correct_answer", "A")),
                 explanation=data.get("explanation", ""),
             )
             db.add(mcq)
@@ -105,15 +105,45 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
             if data:
                 try:
                     async with db.begin_nested():
+                        # Generate boilerplate for standard style
+                        p_style = data.get("problem_style", "standard")
+                        input_schema = data.get("input_schema")
+                        output_type = data.get("output_type")
+                        
+                        starter_code_dict = data.get("starter_code") if isinstance(data.get("starter_code"), dict) else None
+                        driver_code_dict = data.get("driver_code") if isinstance(data.get("driver_code"), dict) else None
+                        
+                        if starter_code_dict:
+                            for k, v in starter_code_dict.items():
+                                if isinstance(v, str): starter_code_dict[k] = v.replace("\\n", "\n")
+                        if driver_code_dict:
+                            for k, v in driver_code_dict.items():
+                                if isinstance(v, str): driver_code_dict[k] = v.replace("\\n", "\n")
+                        
+                        if p_style == "standard" and input_schema and output_type:
+                            from app.services.boilerplate import generate_standard_boilerplate
+                            starter_code_dict = generate_standard_boilerplate(input_schema, output_type)
+                        
+                        official_solution = data.get("official_solution", "")
+                        if isinstance(official_solution, str):
+                            official_solution = official_solution.replace("\\n", "\n")
+                            
                         problem = Problem(
-                            title=data["title"],
+                            title=data.get("title", "Untitled Problem"),
                             topic_tags=data.get("topic_tags", [q_topic.lower()]),
                             difficulty=_coerce_difficulty(data.get("difficulty", q_diff)),
-                            statement=data["statement"],
+                            statement=data.get("statement", "Statement missing"),
                             constraints=data.get("constraints", ""),
                             sample_input=data.get("sample_input", ""),
                             sample_output=data.get("sample_output", ""),
-                            official_solution=data.get("official_solution", ""),
+                            official_solution=official_solution,
+                            problem_style=p_style,
+                            starter_code=data.get("starter_code") if isinstance(data.get("starter_code"), str) else None,
+                            driver_code=data.get("driver_code") if isinstance(data.get("driver_code"), str) else None,
+                            starter_code_dict=starter_code_dict,
+                            driver_code_dict=data.get("driver_code") if isinstance(data.get("driver_code"), dict) else None,
+                            input_schema=input_schema,
+                            output_type=output_type,
                             time_limit_ms=2000,
                             memory_limit_mb=256,
                         )
@@ -125,13 +155,40 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
                                 problem_id=problem.id,
                                 input=tc["input"],
                                 expected_output=tc["expected"],
-                                is_hidden=tc.get("is_hidden", True),
-                                category=tc.get("category", "random"),
+                                is_hidden=tc.get("is_hidden", False),
+                                category=tc.get("category", "sample"),
                             ))
                         await db.flush()
 
+                        # Pass 2: Generate hidden exhaustive test cases
+                        from app.services.llm import generate_hidden_test_cases_with_gemini
+                        try:
+                            hidden_test_cases = await generate_hidden_test_cases_with_gemini(data)
+                            for tc in hidden_test_cases:
+                                tc_input = tc["input"]
+                                if not tc_input or not tc_input.strip():
+                                    tc_input = "{}"
+                                tc_db = TestCase(
+                                    problem_id=problem.id,
+                                    input=tc_input,
+                                    expected_output=tc.get("expected", ""),
+                                    is_hidden=True,
+                                    category=tc.get("category", "random"),
+                                )
+                                db.add(tc_db)
+                                # Append to data so the fixer LLM sees them if validation fails
+                                data.setdefault("test_cases", []).append({
+                                    "input": tc_input,
+                                    "expected": tc.get("expected", ""),
+                                    "is_hidden": True,
+                                    "category": tc.get("category", "random")
+                                })
+                            await db.flush()
+                        except Exception as e:
+                            logger.error(f"Failed to generate hidden test cases: {e}")
+
                         if problem.official_solution:
-                            verdict, _, _, _, err = await run_against_hidden_tests(problem.id, problem.official_solution, "python3", db)
+                            verdict, _, _, _, err = await run_against_hidden_tests(problem.id, problem.official_solution, "python3", db, is_validation=True, update_expected_outputs=True)
                             if verdict != Verdict.accepted:
                                 logger.warning(f"Validation failed for '{problem.title}': {verdict} - {err}. Attempting fix...")
                                 from app.services.llm import fix_generated_problem_with_gemini
@@ -160,7 +217,7 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
                                 await db.flush()
                                 
                                 # Re-validate
-                                verdict, _, _, _, err = await run_against_hidden_tests(problem.id, problem.official_solution, "python3", db)
+                                verdict, _, _, _, err = await run_against_hidden_tests(problem.id, problem.official_solution, "python3", db, is_validation=True, update_expected_outputs=True)
                                 if verdict != Verdict.accepted:
                                     logger.warning(f"Validation failed again after fix for '{problem.title}': {verdict} - {err}")
                                     raise ValueError("Validation failed after self-correction retry")

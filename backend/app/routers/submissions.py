@@ -31,6 +31,7 @@ class CodeSubmit(BaseModel):
     code: str
     language: str  # "python3" | "javascript" | "cpp"
     is_run: bool = False
+    custom_input: Optional[str] = None
 
 class MCQSubmit(BaseModel):
     session_id: str
@@ -44,6 +45,7 @@ class SubmissionResponse(BaseModel):
     passed_hidden_count: int
     total_hidden_count: int
     error_output: Optional[str] = None
+    stdout: Optional[str] = None
 
 
 @router.post("/code", response_model=SubmissionResponse)
@@ -58,6 +60,25 @@ async def submit_code(
     )
     session = result.scalar_one_or_none()
     _assert_session_open(session)
+
+    if data.custom_input is not None:
+        from app.services.judge import run_custom_input
+        stdout, stderr, ran, runtime_ms, error_output = await run_custom_input(
+            problem_id=data.problem_id,
+            code=data.code,
+            language=data.language,
+            custom_input=data.custom_input,
+            db=db,
+        )
+        return SubmissionResponse(
+            id="custom-run",
+            verdict="custom",
+            runtime_ms=runtime_ms,
+            passed_hidden_count=0,
+            total_hidden_count=0,
+            error_output=error_output,
+            stdout=stdout,
+        )
 
     from app.services.judge import run_against_hidden_tests
 

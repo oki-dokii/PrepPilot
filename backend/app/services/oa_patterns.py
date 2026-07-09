@@ -18,7 +18,7 @@ async def resolve_oa_pattern(company: str, role: Optional[str], level: Optional[
     # Find all reviewed patterns for this company (case-insensitive fuzzy match)
     query = select(OAPattern).where(
         and_(
-            OAPattern.company.ilike(f"%{company}%"),
+            OAPattern.company.op("~*")(rf"\b{company}\b"),
             OAPattern.reviewed == True
         )
     )
