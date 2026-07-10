@@ -310,18 +310,24 @@ Requirements:
 
 async def _generate_problem_with_gemini(topic: str, difficulty: str, style: str | None) -> dict:
     style_hint = f" inspired by {style} OA style" if style else ""
-    prompt = f"""Create a coding problem about {topic}{style_hint} at {difficulty} difficulty for a coding interview prep platform.
+    prompt = f"""Create a coding problem. 
+Topic: {topic}{style_hint}.
+Intended Algorithm: Select an advanced sub-algorithm from this topic (e.g., if topic is Graph, choose Dijkstra or BFS+Bitmask).
+Difficulty: {difficulty}. Internally justify the expected solve rate (Easy=70%, Medium=35%, Hard=10%).
 
-IMPORTANT: You MUST design a problem that secretly requires the specified topic/algorithm. The statement MUST NEVER explicitly name the algorithm (e.g., do not say 'find the all-pairs shortest path'). Instead, describe a real task. The story/scenario must directly influence the algorithmic constraints (e.g., 'roads can disappear' forces dynamic graphs).
+IMPORTANT: You MUST design an original interview problem that secretly requires the intended algorithm. The statement MUST NEVER explicitly name the algorithm. Instead, describe a real task. The story/scenario must directly influence the algorithmic constraints (e.g., 'roads can disappear' forces dynamic graphs).
 RULES:
 1. Return ONLY a valid JSON object. No markdown fences. ALL newlines inside string values MUST be escaped as \\n.
 2. Choose constraints that make EXACTLY ONE intended complexity pass.
-3. The hidden insight should require one or more non-trivial observations.
-4. The statement MUST include a clear 'Input Format', 'Output Format', a strict function signature reference (e.g. `vector<vector<int>> solve(int n, vector<vector<int>>& edges)`), and ENOUGH examples to eliminate any ambiguity. Examples MUST be mathematically correct.
+3. The problem should feel like a Big Tech interview question, not a competitive programming puzzle. Avoid obscure mathematical tricks. Prefer practical data structures. The key insight should be discoverable in 30-40 minutes.
+4. BAN the following phrases: "find the shortest path", "find the longest subsequence", "find the minimum spanning tree", "compute APSP", "use dynamic programming", "using OOP".
+5. The statement MUST include a clear 'Input Format', 'Output Format', a strict function signature reference (e.g. `vector<vector<int>> solve(int n, vector<vector<int>>& edges)`), and ENOUGH examples to eliminate any ambiguity. Examples MUST be mathematically correct.
 5. You MUST include a `_thought_process` field first with a verification checklist: 1. Solve it yourself. 2. Verify every sample. 3. List 3 common incorrect approaches. 4. Verify no algorithmic hints. 5. Verify constraints match exactly one intended complexity.
 
 {{
-  "_thought_process": "string (Checklist: 1. Solve it yourself. 2. Verify every sample. 3. List 3 common incorrect approaches. 4. Verify no algorithmic hints. 5. Verify constraints match exactly one intended complexity.)",
+  "_thought_process": "string (Checklist: 1. Solve it yourself. 2. Verify every sample. 3. List 3 common incorrect approaches. 4. Verify no algorithmic hints. 5. Verify constraints match exactly one intended complexity. 6. Could two competent engineers interpret this differently? YES -> Regenerate. NO -> Continue.)",
+  "algorithms": ["string"],
+  "key_insight": "string",
   "expected_complexity": "string (e.g. O(N log N))",
   "common_wrong_approaches": ["string"],
   "title": "string (e.g. 'Shortest Routes Matrix', 'Rank Matching Pages')",
@@ -339,7 +345,7 @@ RULES:
   ]
 }}
 
-TEST CASE REQUIREMENTS — MUST have AT LEAST 12 cases covering ALL categories:
+TEST CASE REQUIREMENTS — MUST have AT LEAST 12 cases covering ALL categories. Hidden tests must specifically target the common_wrong_approaches listed.
 
 1. sample (2, is_hidden: false) — Small, readable, hand-verifiable. Shown to candidate.
 2. boundary (3, is_hidden: true)
@@ -404,11 +410,14 @@ Coding Problems to generate ({len(coding_items)} total):
 {coding_spec if coding_spec else "  None"}
 
 ═══ GENERAL RULES ═══
-- Every question must be UNIQUE. Do NOT use classic textbook questions ("What is memoization?", "What is a pointer?", etc.)
-- For MCQs: test APPLIED understanding — scenario-based, trade-off analysis, subtle edge cases. Never simple definitions.
-- For Coding Problems: You MUST design a problem that secretly requires the specified topic/algorithm. The statement MUST NEVER explicitly name the algorithm (e.g., do not say 'find the all-pairs shortest path'). Instead, describe a real task (e.g., 'Return an n×n matrix where answer[i][j] is the minimum travel time').
-- For Coding Problems: The story/scenario must directly influence the algorithmic constraints (e.g., 'roads can disappear' forces dynamic graphs, or 'trucks have capacities' forces binary search + BFS).
-- For Coding Problems: The hidden insight should require one or more non-trivial observations. Do not just test a vanilla algorithm unless the constraints are incredibly tight.
+- Every question must be UNIQUE. Do NOT use classic textbook questions.
+- For MCQs: Test runtime analysis, code output, debugging, STL behavior, iterator invalidation, polymorphism, SQL execution, or concurrency. Do not ask for simple definitions.
+- For Coding Problems: Intended Algorithm: Select an advanced sub-algorithm from the specified topic (e.g., if topic is Graph, choose Dijkstra or BFS+Bitmask).
+- For Coding Problems: Internally justify the expected solve rate (Easy=70%, Medium=35%, Hard=10%).
+- For Coding Problems: You MUST design a problem that secretly requires the intended algorithm. The statement MUST NEVER explicitly name the algorithm. Instead, describe a real task (e.g., 'Return an n×n matrix where answer[i][j] is the minimum travel time').
+- For Coding Problems: The story/scenario must directly influence the algorithmic constraints (e.g., 'roads can disappear' forces dynamic graphs).
+- For Coding Problems: The problem should feel like a Big Tech interview question, not a competitive programming puzzle. Avoid obscure mathematical tricks. Prefer practical data structures. The key insight should be discoverable in 30-40 minutes.
+- For Coding Problems: BAN the following phrases: "find the shortest path", "find the longest subsequence", "find the minimum spanning tree", "compute APSP", "use dynamic programming", "using OOP".
 - For Coding Problems: Choose constraints that make EXACTLY ONE intended complexity pass. (e.g., If N=2e5, O(N log N) passes but O(N^2) TLEs).
 - For Coding Problems: The statement MUST include a clear 'Input Format', 'Output Format', a strict function signature reference (e.g. `vector<vector<int>> solve(int n, vector<vector<int>>& edges)`), and ENOUGH examples to eliminate any ambiguity. Examples MUST be mathematically correct.
 - ALL string values must escape newlines as \\n. No raw multiline strings. Return ONLY valid JSON. No markdown fences.
@@ -478,7 +487,9 @@ Return a single JSON object (with a `_thought_process` field first to brainstorm
   ],
   "problems": [
     {{
-      "_thought_process": "string (Checklist: 1. Solve it yourself. 2. Verify every sample. 3. List 3 common incorrect approaches. 4. Verify no algorithmic hints. 5. Verify constraints match exactly one intended complexity.)",
+      "_thought_process": "string (Checklist: 1. Solve it yourself. 2. Verify every sample. 3. List 3 common incorrect approaches. 4. Verify no algorithmic hints. 5. Verify constraints match exactly one intended complexity. 6. Could two competent engineers interpret this differently? YES -> Regenerate. NO -> Continue.)",
+      "algorithms": ["string"],
+      "key_insight": "string",
       "expected_complexity": "string (e.g. O(N log N))",
       "common_wrong_approaches": ["string"],
       "title": "string (e.g. 'Shortest Routes Matrix', 'Rank Matching Pages')",
