@@ -425,10 +425,11 @@ The boilerplate generator will produce parsers for ALL these types. Use the righ
 
   1-D ARRAYS (stdin: N followed by N elements):
     list<int>, list<long>, list<float>, list<double>, list<string>, list<bool>
+    IMPORTANT: The boilerplate automatically reads the size N. DO NOT add 'N' as a separate variable in input_schema. But the raw text in testcases MUST include N before the elements.
 
   2-D ARRAYS / GRIDS / MATRICES (stdin: R followed by R rows each with C then C elements):
     list<list<int>>, list<list<long>>, list<list<float>>, list<list<string>>
-    Use for: adjacency matrices, grids, graphs as edge lists, DP tables.
+    IMPORTANT: The boilerplate automatically reads R and C. DO NOT add 'R' or 'C' as separate variables in input_schema. Raw text in testcases MUST include R and C correctly.
 
   PAIRS (stdin: first second as two consecutive tokens):
     pair<int,int>, pair<long,long>, pair<int,string>
@@ -441,11 +442,11 @@ The boilerplate generator will produce parsers for ALL these types. Use the righ
 
   COMMON DSA PATTERNS:
     - Graph (N nodes, M edges, edge list): n:int, m:int, edges:list<list<int>>  (each sub-list [u,v] or [u,v,w])
-    - Tree (N nodes, parent array): n:int, parent:list<int>
+    - Tree (N nodes, parent array): parent:list<int>
     - Strings: s:string  (single token; if multiple words, use list<string> + join in code)
-    - Binary search: n:int, arr:list<int>, target:int
-    - DP on matrix: n:int, m:int, grid:list<list<int>>
-    - Interval scheduling: n:int, intervals:list<list<int>>  (each [start,end])
+    - Binary search: arr:list<int>, target:int
+    - DP on matrix: grid:list<list<int>>
+    - Interval scheduling: intervals:list<list<int>>  (each [start,end])
 
   FOR LEETCODE STYLE: input_schema is only informational metadata.
     The driver_code handles all deserialization (TreeNode, ListNode, etc.).
