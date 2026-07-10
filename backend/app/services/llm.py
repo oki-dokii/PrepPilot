@@ -312,20 +312,20 @@ async def _generate_problem_with_gemini(topic: str, difficulty: str, style: str 
     style_hint = f" inspired by {style} OA style" if style else ""
     prompt = f"""Create a coding problem about {topic}{style_hint} at {difficulty} difficulty for a coding interview prep platform.
 
-IMPORTANT: You MUST invent a highly-detailed NOVEL real-world scenario (e.g., autonomous vehicle routing, satellite telemetry, genomics pipeline, logistics optimization, financial clearing). Do NOT use LeetCode problem names verbatim. 
-The `title` MUST reflect this scenario (e.g., "Logistics Fleet Routing" instead of "Shortest Path in Graph"). 
-The `statement` MUST NEVER sound like a generic algorithm puzzle (do not use "Given an array of integers"). Wrap the core algorithmic challenge completely inside the business logic or engineering context.
+IMPORTANT: You MUST design a problem that secretly requires the specified topic/algorithm. The statement MUST NEVER explicitly name the algorithm (e.g., do not say 'find the all-pairs shortest path'). Instead, describe a real task. The story/scenario must directly influence the algorithmic constraints (e.g., 'roads can disappear' forces dynamic graphs).
 RULES:
-1. Return ONLY a valid JSON object. No markdown fences.
-2. ALL newlines inside string values MUST be escaped as \\n.
-3. Make sure all problem conditions are mathematically rigorous and unambiguous. Never leave key constraints open to interpretation.
-4. The statement MUST include a clear 'Input Format', 'Output Format', and AT LEAST 2 sample examples with step-by-step logical explanations.
-5. You MUST include a `_thought_process` field first to brainstorm the scenario, constraints, and tricky edge cases before writing the problem.
+1. Return ONLY a valid JSON object. No markdown fences. ALL newlines inside string values MUST be escaped as \\n.
+2. Choose constraints that make EXACTLY ONE intended complexity pass.
+3. The hidden insight should require one or more non-trivial observations.
+4. The statement MUST include a clear 'Input Format', 'Output Format', a strict function signature reference (e.g. `vector<vector<int>> solve(int n, vector<vector<int>>& edges)`), and ENOUGH examples to eliminate any ambiguity. Examples MUST be mathematically correct.
+5. You MUST include a `_thought_process` field first with a verification checklist: 1. Solve it yourself. 2. Verify every sample. 3. List 3 common incorrect approaches. 4. Verify no algorithmic hints. 5. Verify constraints match exactly one intended complexity.
 
 {{
-  "_thought_process": "string (brainstorming the scenario, constraints, and tricky edge cases)",
-  "title": "string",
-  "statement": "string (markdown with Input/Output format, and at least 2 Examples with step-by-step explanations)",
+  "_thought_process": "string (Checklist: 1. Solve it yourself. 2. Verify every sample. 3. List 3 common incorrect approaches. 4. Verify no algorithmic hints. 5. Verify constraints match exactly one intended complexity.)",
+  "expected_complexity": "string (e.g. O(N log N))",
+  "common_wrong_approaches": ["string"],
+  "title": "string (e.g. 'Shortest Routes Matrix', 'Rank Matching Pages')",
+  "statement": "string (markdown with Input/Output format, a function signature, and unambiguous Examples)",
   "constraints": "string (markdown bullet list)",
   "sample_input": "string",
   "sample_output": "string",
@@ -406,12 +406,12 @@ Coding Problems to generate ({len(coding_items)} total):
 ═══ GENERAL RULES ═══
 - Every question must be UNIQUE. Do NOT use classic textbook questions ("What is memoization?", "What is a pointer?", etc.)
 - For MCQs: test APPLIED understanding — scenario-based, trade-off analysis, subtle edge cases. Never simple definitions.
-- For Coding Problems: You MUST invent a highly-detailed NOVEL real-world scenario (e.g., autonomous vehicles, satellite telemetry, genomics pipeline, logistics routing, financial clearing). 
-- For Coding Problems: The `title` MUST reflect the scenario (e.g., 'Logistics Fleet Routing' instead of 'Shortest Path in Graph'). 
-- For Coding Problems: The `statement` MUST NEVER sound like a generic algorithm puzzle (do not use "Given an array of integers"). Wrap the core algorithm completely in the business logic or engineering context.
-- For Coding Problems: Make sure all problem conditions are mathematically rigorous and unambiguous. Never leave key constraints open to interpretation. The statement MUST include a clear 'Input Format', 'Output Format', and AT LEAST 2 sample examples with step-by-step logical explanations.
-- ALL string values must escape newlines as \\n. No raw multiline strings.
-- Return ONLY valid JSON. No markdown fences.
+- For Coding Problems: You MUST design a problem that secretly requires the specified topic/algorithm. The statement MUST NEVER explicitly name the algorithm (e.g., do not say 'find the all-pairs shortest path'). Instead, describe a real task (e.g., 'Return an n×n matrix where answer[i][j] is the minimum travel time').
+- For Coding Problems: The story/scenario must directly influence the algorithmic constraints (e.g., 'roads can disappear' forces dynamic graphs, or 'trucks have capacities' forces binary search + BFS).
+- For Coding Problems: The hidden insight should require one or more non-trivial observations. Do not just test a vanilla algorithm unless the constraints are incredibly tight.
+- For Coding Problems: Choose constraints that make EXACTLY ONE intended complexity pass. (e.g., If N=2e5, O(N log N) passes but O(N^2) TLEs).
+- For Coding Problems: The statement MUST include a clear 'Input Format', 'Output Format', a strict function signature reference (e.g. `vector<vector<int>> solve(int n, vector<vector<int>>& edges)`), and ENOUGH examples to eliminate any ambiguity. Examples MUST be mathematically correct.
+- ALL string values must escape newlines as \\n. No raw multiline strings. Return ONLY valid JSON. No markdown fences.
 
 ═══ INPUT SCHEMA TYPE GUIDE (STANDARD STYLE) ═══
 The boilerplate generator will produce parsers for ALL these types. Use the right type to produce correct problems:
@@ -478,9 +478,11 @@ Return a single JSON object (with a `_thought_process` field first to brainstorm
   ],
   "problems": [
     {{
-      "_thought_process": "string (brainstorming the specific real-world scenario, the constraints, and the core algorithmic trap)",
-      "title": "string",
-      "statement": "string (markdown with Input/Output format, and at least 2 Examples with explanations, newlines as \\\\n)",
+      "_thought_process": "string (Checklist: 1. Solve it yourself. 2. Verify every sample. 3. List 3 common incorrect approaches. 4. Verify no algorithmic hints. 5. Verify constraints match exactly one intended complexity.)",
+      "expected_complexity": "string (e.g. O(N log N))",
+      "common_wrong_approaches": ["string"],
+      "title": "string (e.g. 'Shortest Routes Matrix', 'Rank Matching Pages')",
+      "statement": "string (markdown with Input/Output format, a function signature, and unambiguous Examples, newlines as \\\\n)",
       "constraints": "string (bullet list, newlines as \\\\n)",
       "sample_input": "string (MUST be a valid JSON dictionary mapping schema names to values, e.g. {{ \"N\": 5 }})",
       "sample_output": "string",
