@@ -545,7 +545,7 @@ Your task is to generate exactly 10 exhaustive hidden test cases for this proble
 The test cases MUST adhere strictly to the problem constraints and cover these categories:
 
 1. boundary (2 cases)
-   — Empty array or string (e.g. {"arr": []}), single element, minimum/maximum constraint values (n=1, n=max).
+   — Empty array or string (e.g. {{ "arr": [] }}), single element, minimum/maximum constraint values (n=1, n=max).
 
 2. structural (3 cases)
    — Problem-specific structural edge cases:
