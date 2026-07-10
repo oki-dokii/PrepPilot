@@ -60,7 +60,9 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
                         await asyncio.sleep(0.5)
             logger.info(f"Batch generation complete: {len(batch_data['mcqs'])} MCQs, {len(batch_data['problems'])} problems")
         except Exception as e:
-            logger.warning(f"Batch Gemini generation failed catastrophically: {e}. Falling back to stubs.")
+            logger.error(f"Batch Gemini generation failed catastrophically: {e}.")
+            from fastapi import HTTPException
+            raise HTTPException(status_code=500, detail=f"Failed to generate test with AI: {e}")
 
     mcq_pool = iter(batch_data["mcqs"])
     problem_pool = iter(batch_data["problems"])
@@ -72,11 +74,10 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
         q_diff = item.get("difficulty", "medium")
 
         if q_type == "mcq":
-            # Try next from batch, fallback to stub
             data = next(mcq_pool, None)
             if not data:
-                stub_list = _get_stub_mcqs(q_topic, 1)
-                data = stub_list[0] if stub_list else _get_stub_mcqs("Arrays", 1)[0]
+                from fastapi import HTTPException
+                raise HTTPException(status_code=500, detail=f"AI failed to generate enough MCQ questions for topic {q_topic}")
 
             mcq = MCQ(
                 topic_tags=data.get("topic_tags", [q_topic.lower()]),
@@ -233,32 +234,8 @@ async def generate_test_sync(user_id: str, spec: dict, db: AsyncSession) -> Test
                     valid_problem_created = False
 
             if not valid_problem_created:
-                data = _get_stub_problem(q_topic)
-                problem = Problem(
-                    title=data["title"],
-                    topic_tags=data.get("topic_tags", [q_topic.lower()]),
-                    difficulty=_coerce_difficulty(data.get("difficulty", q_diff)),
-                    statement=data["statement"],
-                    constraints=data.get("constraints", ""),
-                    sample_input=data.get("sample_input", ""),
-                    sample_output=data.get("sample_output", ""),
-                    official_solution=data.get("official_solution", ""),
-                    time_limit_ms=2000,
-                    memory_limit_mb=256,
-                    validated_at=datetime.now(timezone.utc)
-                )
-                db.add(problem)
-                await db.flush()
-
-                for tc in data.get("test_cases", []):
-                    db.add(TestCase(
-                        problem_id=problem.id,
-                        input=tc["input"],
-                        expected_output=tc["expected"],
-                        is_hidden=tc.get("is_hidden", False),  # consistent with LLM path
-                        category=tc.get("category", "sample"),
-                    ))
-                await db.flush()
+                from fastapi import HTTPException
+                raise HTTPException(status_code=500, detail=f"AI failed to generate a valid coding problem for topic {q_topic}")
 
             tq = TestQuestion(test_id=test.id, problem_id=problem.id, order=order, question_type="coding")
             db.add(tq)

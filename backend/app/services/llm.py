@@ -435,7 +435,7 @@ The boilerplate generator will produce parsers for ALL these types. Use the righ
     Use for: weighted edges, coordinate pairs, (key,value) inputs.
 
   MULTI-TEST-CASE (stdin: T followed by T repetitions of the rest):
-    Use {"name": "T", "type": "testcases"} as the FIRST schema item.
+    Use {{ "name": "T", "type": "testcases" }} as the FIRST schema item.
     The remaining schema items describe ONE test-case block (repeated T times).
     Use for: classic competitive programming problems with multiple test cases.
 
